@@ -10,30 +10,49 @@
 - `[x]`：已驗證通過
 - `[N/A]`：此階段不適用，需補充原因
 
-## 2. Phase 1：基礎架構
+## 2. Phase 1：共同契約
 
-目標：確認資料庫、基礎 API 格式、session 與核心資料限制可支撐後續功能。
+目標：確認 DB schema、API 契約、錯誤格式、權限與前端流程已能支撐 MVP 實作。
 
+- [ ] `db_schema.md` 已定義 `users`、`services`、`availability_slots`、`bookings`、`booking_status_logs`、`sessions`、`audit_logs`
+- [ ] `db_schema.md` 已定義 `user_role`、`user_status`、`service_status`、`availability_slot_status`、`booking_status`、`booking_cancelled_by`
+- [ ] `db_schema.md` 已定義主要 constraint 與 partial unique index
+- [ ] `api_contract.md` 已定義成功回應、列表回應、無內容回應與錯誤回應格式
+- [ ] `api_contract.md` 已定義 Public、Auth、Member、Admin API endpoints
+- [ ] `api_contract.md` 已定義穩定錯誤碼與 HTTP status 對應
+- [ ] `api_contract.md` 已定義 rate limit 規則
+- [ ] `frontend_flow.md` 已定義公開頁、會員頁與後台頁路由
+- [ ] `frontend_flow.md` 已定義登入狀態、錯誤處理與 SSR / 快取規則
+- [ ] 權限規則已明確區分訪客、會員、管理員
+- [ ] 時間規則已明確定義 DB 儲存 UTC、API 回傳 ISO 8601、前端依使用者時區顯示
+- [ ] 契約文件之間沒有明顯衝突或未定義欄位
+
+## 3. Phase 2：前後端骨架
+
+目標：確認前後端專案結構、啟動流程、基礎 module、migration 與共用錯誤格式已建立。
+
+- [ ] 前端專案可啟動
+- [ ] 後端專案可啟動
+- [ ] PostgreSQL 連線設定可正常使用
 - [ ] Migration 可從空資料庫完整重建 schema
 - [ ] Migration 可重複套用與 rollback，且不留下半套狀態
-- [ ] `users`、`services`、`availability_slots`、`bookings`、`booking_status_logs`、`sessions`、`audit_logs` 表結構符合 `db_schema.md`
-- [ ] `user_role`、`user_status`、`service_status`、`availability_slot_status`、`booking_status`、`booking_cancelled_by` enum 正確存在
-- [ ] `duration_minutes > 0`、`price >= 0`、`end_at > start_at` 等 constraint 正確存在
-- [ ] `users.email` unique index 正確存在
-- [ ] `sessions.session_token_hash` unique index 正確存在
-- [ ] `bookings.availability_slot_id` partial unique index 能阻擋同一時段多筆非 cancelled 預約
-- [ ] `bookings(user_id, availability_slot_id)` partial unique index 能阻擋同一會員重複預約同一時段
-- [ ] Session token 只以 hash 形式存入 DB，不存明文 token
+- [ ] 後端已建立 module / controller / service / repository 分層
+- [ ] 後端已建立 Auth、ServiceCatalog、Availability、Booking、Admin、AuditLog 等主要 module 空殼
 - [ ] 成功回應格式符合 `api_contract.md` 的 `data` 格式
 - [ ] 列表回應格式符合 `data + meta` 格式
 - [ ] 錯誤回應格式符合 `error.code + error.message` 格式
-- [ ] API 時間欄位回傳 ISO 8601
-- [ ] DB 時間欄位使用 UTC 儲存
+- [ ] 前端已建立 App Router 主要頁面路由
+- [ ] 前端已建立基本 layout
+- [ ] 前端已建立 API client 與錯誤處理基礎
+- [ ] 前端已建立 loading / empty / error 狀態基礎
 
-## 3. Phase 2：公開服務瀏覽
+## 4. Phase 3：公開服務瀏覽
 
 目標：確認訪客不登入即可查看公開服務與可預約時段，且服務狀態規則正確。
 
+- [ ] `services` migration 符合 `db_schema.md`
+- [ ] `availability_slots` migration 符合 `db_schema.md`
+- [ ] `duration_minutes > 0`、`price >= 0`、`end_at > start_at` 等 constraint 正確存在
 - [ ] `GET /api/services` 會回傳 `active` 服務
 - [ ] `GET /api/services` 會回傳 `inactive` 服務
 - [ ] `GET /api/services` 不會回傳 `hidden` 服務
@@ -48,10 +67,18 @@
 - [ ] 公開頁面不載入會員私人資料
 - [ ] 公開頁面快取不會混入 session 相關資料
 
-## 4. Phase 3：會員與預約
+## 5. Phase 4：會員與預約
 
 目標：確認會員註冊、登入、建立預約、查看自己預約與取消預約流程完整且安全。
 
+- [ ] `users` migration 符合 `db_schema.md`
+- [ ] `sessions` migration 符合 `db_schema.md`
+- [ ] `bookings` migration 符合 `db_schema.md`
+- [ ] `booking_status_logs` migration 符合 `db_schema.md`
+- [ ] `users.email` unique index 正確存在
+- [ ] `sessions.session_token_hash` unique index 正確存在
+- [ ] `bookings.availability_slot_id` partial unique index 能阻擋同一時段多筆非 cancelled 預約
+- [ ] `bookings(user_id, availability_slot_id)` partial unique index 能阻擋同一會員重複預約同一時段
 - [ ] `POST /api/auth/register` 可建立 `role = user`、`status = active` 的會員
 - [ ] 註冊不回傳 `passwordHash`
 - [ ] 密碼使用 argon2id hash 後存入 DB
@@ -81,10 +108,11 @@
 - [ ] 結束時間已過且未取消的預約，查詢時對外顯示為 `completed`
 - [ ] `completed` 不寫入 `booking_status_logs`
 
-## 5. Phase 4：後台管理
+## 6. Phase 5：後台管理
 
 目標：確認 Admin 權限、後台服務管理、時段管理、預約管理與 audit log 規則正確。
 
+- [ ] `audit_logs` migration 符合 `db_schema.md`
 - [ ] 未登入呼叫 Admin API 會回 `401 UNAUTHENTICATED`
 - [ ] 非 admin 呼叫 Admin API 會回 `403 FORBIDDEN`
 - [ ] Admin API 權限由後端 `role = admin` 檢查，不只依賴前端 route guard
@@ -120,7 +148,7 @@
 - [ ] `GET /api/admin/audit-logs` 可查詢指定操作紀錄
 - [ ] 查詢類 Admin API 暫不寫入 audit log
 
-## 6. Phase 5：風險補強
+## 7. Phase 6：風險補強與驗收
 
 目標：確認 rate limit、錯誤碼、快取、安全與 E2E 驗證足以支撐 MVP 驗收。
 
@@ -151,7 +179,7 @@
 - [ ] E2E 覆蓋非 admin 被阻擋
 - [ ] E2E 覆蓋 admin 建立服務、建立時段、建立預約、取消預約
 
-## 7. 完整性檢查
+## 8. 完整性檢查
 
 已對照 `MVP_SPEC.md`、`api_contract.md`、`db_schema.md`、`frontend_flow.md` 與 `implementation_plan.md` 檢查，補齊以下原始建議未明確列出的驗證點：
 

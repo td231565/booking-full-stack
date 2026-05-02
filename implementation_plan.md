@@ -12,6 +12,7 @@
 - `db_schema.md`：資料表、狀態定義、索引與交易規則
 - `api_contract.md`：API endpoints、request / response、錯誤格式與權限摘要
 - `frontend_flow.md`：前端路由、頁面流程、串接方式與 UI 風險控管
+- `verification_checklist.md`：各階段完成後的驗證項目與 MVP 驗收清單
 
 ## 2. Phase 1：先定義共同契約
 
@@ -224,3 +225,5 @@
 - 權限是否由後端檢查
 - 錯誤碼是否足夠讓前端顯示正確狀態
 - 是否有需要補測試的高風險情境
+
+階段完成後，需同步對照 `verification_checklist.md` 勾選驗證項目。進入 MVP 驗收前，需重新跑一次完整 checklist。
