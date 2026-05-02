@@ -698,7 +698,66 @@ Request body：
 - 若時段已有有效預約，需避免直接改成會造成資料不一致的時間
 - 若需要取消既有預約，應透過 Admin 取消預約 API
 
-### 7.5 取得後台預約列表
+### 7.5 批次產生可預約時段
+
+```text
+POST /api/admin/availability-slots/bulk-generate
+```
+
+Request body：
+
+```json
+{
+  "serviceId": "uuid",
+  "timezone": "Asia/Taipei",
+  "dateFrom": "2026-05-01",
+  "dateTo": "2026-05-31",
+  "weekdays": [1, 2, 3, 4, 5],
+  "timeRanges": [
+    {
+      "startTime": "09:00",
+      "endTime": "12:00"
+    },
+    {
+      "startTime": "14:00",
+      "endTime": "18:00"
+    }
+  ]
+}
+```
+
+規則：
+
+- 服務必須是 `active`
+- `timezone` 表示後台輸入時間的時區，MVP 預設使用 `Asia/Taipei`
+- `weekdays` 使用 ISO weekday，`1 = Monday`，`7 = Sunday`
+- `durationMinutes` 不由前端傳入，後端使用服務設定的 `durationMinutes` 切分時段
+- 後端需將本地日期時間轉成 UTC 後存入 DB
+- 若產生的時段已存在，應跳過而不是建立重複資料
+- 管理員批次產生時段不受會員的「1 小時後可預約」限制
+- 成功後需寫入 `audit_logs`
+
+Response：
+
+```json
+{
+  "data": {
+    "created": 80,
+    "skipped": 4
+  }
+}
+```
+
+可能錯誤：
+
+| code | HTTP | 說明 |
+| --- | --- | --- |
+| SERVICE_NOT_FOUND | 404 | 服務不存在 |
+| SERVICE_NOT_ACTIVE | 409 | 服務不是啟用狀態 |
+| INVALID_TIME_RANGE | 400 | 時間區間格式錯誤 |
+| VALIDATION_ERROR | 400 | 輸入資料驗證失敗 |
+
+### 7.6 取得後台預約列表
 
 ```text
 GET /api/admin/bookings
@@ -750,7 +809,7 @@ Response：
 }
 ```
 
-### 7.6 Admin 建立預約
+### 7.7 Admin 建立預約
 
 ```text
 POST /api/admin/bookings
@@ -773,7 +832,7 @@ Request body：
 - 仍需避免同一時段產生多筆有效預約
 - 成功後需寫入 `booking_status_logs` 與 `audit_logs`
 
-### 7.7 Admin 更新預約
+### 7.8 Admin 更新預約
 
 ```text
 PATCH /api/admin/bookings/:bookingId
@@ -792,7 +851,7 @@ Request body：
 - MVP 先只開放更新 `note`
 - 若要調整時段，建議第二階段再加入改期 API，避免 MVP 預約一致性過度複雜
 
-### 7.8 Admin 更新預約狀態
+### 7.9 Admin 更新預約狀態
 
 ```text
 PATCH /api/admin/bookings/:bookingId/status
@@ -813,7 +872,7 @@ Request body：
 - 允許 `confirmed -> cancelled`
 - 成功後需寫入 `booking_status_logs` 與 `audit_logs`
 
-### 7.9 Admin 取消預約
+### 7.10 Admin 取消預約
 
 ```text
 POST /api/admin/bookings/:bookingId/cancel
@@ -834,7 +893,7 @@ Request body：
 - `cancelledBy = admin`
 - 成功後需寫入 `booking_status_logs` 與 `audit_logs`
 
-### 7.10 取得稽核紀錄
+### 7.11 取得稽核紀錄
 
 ```text
 GET /api/admin/audit-logs
@@ -907,5 +966,4 @@ Response：
 - 線上付款 API
 - Email / SMS 通知 API
 - 多店家 / 多租戶 API
-- 規則式排班 API
 - 第三方登入 API
