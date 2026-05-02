@@ -302,7 +302,7 @@ GET /api/me/bookings?page=1&pageSize=20&status=confirmed
 
 - confirmed
 - cancelled
-- completed
+- completed：後端依 `slot.endAt` 與伺服器時間計算，MVP 不提供手動完成操作
 
 ### 7.2 預約詳情 `/my/bookings/:bookingId`
 
@@ -333,6 +333,8 @@ POST /api/me/bookings/:bookingId/cancel
 4. 呼叫 POST /api/me/bookings/:bookingId/cancel
 5. 成功後更新畫面狀態為 cancelled
 ```
+
+若取消時收到 `BOOKING_NOT_CANCELABLE`，代表預約已取消、已完成或狀態不允許取消，前端需重新取得預約詳情並顯示目前狀態。
 
 ## 8. Admin Pages
 
@@ -365,6 +367,8 @@ MVP 可先只做導覽，不一定需要統計 API。
 串接 API：
 
 ```text
+GET /api/admin/services?page=1&pageSize=20&status=
+GET /api/admin/services/:serviceId
 POST /api/admin/services
 PATCH /api/admin/services/:serviceId
 ```
@@ -395,6 +399,8 @@ PATCH /api/admin/services/:serviceId
 單筆時段 API：
 
 ```text
+GET /api/admin/availability-slots?page=1&pageSize=20&serviceId=&status=&from=&to=
+GET /api/admin/availability-slots/:slotId
 POST /api/admin/availability-slots
 PATCH /api/admin/availability-slots/:slotId
 ```
@@ -418,7 +424,7 @@ POST /api/admin/availability-slots/bulk-generate
 
 ```text
 1. Admin 選擇服務
-2. Admin 選擇時區，MVP 預設 Asia/Taipei
+2. 系統使用 MVP 固定時區 Asia/Taipei
 3. Admin 選擇日期區間
 4. Admin 選擇星期，例如週一到週五
 5. Admin 設定一組或多組時間區間
@@ -430,6 +436,7 @@ POST /api/admin/availability-slots/bulk-generate
 UI 注意：
 
 - `durationMinutes` 只顯示，不由前端送出
+- MVP 預設且僅支援 `Asia/Taipei`，暫不提供其他時區選項
 - 遇到 `skipped` 時顯示有部分時段已存在
 - 批次產生送出期間 disable submit button
 
@@ -450,7 +457,6 @@ UI 注意：
 GET /api/admin/bookings?page=1&pageSize=20&status=&serviceId=&userId=&from=&to=
 POST /api/admin/bookings
 PATCH /api/admin/bookings/:bookingId
-PATCH /api/admin/bookings/:bookingId/status
 POST /api/admin/bookings/:bookingId/cancel
 ```
 
@@ -468,6 +474,8 @@ POST /api/admin/bookings/:bookingId/cancel
 - Admin 不受會員的 1 小時後預約限制
 - Admin 不受會員的 4 小時前取消限制
 - 仍需避免同一時段產生多筆有效預約
+- `completed` 由後端依 `slot.endAt` 與伺服器時間計算，MVP 不提供手動完成操作
+- 已取消或已完成的預約再次取消時，依 API 錯誤碼顯示不可取消
 
 ### 8.5 稽核紀錄 `/admin/audit-logs`
 

@@ -85,6 +85,8 @@ erDiagram
 
 MVP 不保留 pending。使用者成功建立預約後，預設直接進入 confirmed。
 
+MVP 階段 `completed` 不需要手動更新。對外查詢時，若預約未取消且 `availability_slots.end_at` 已早於目前伺服器時間，視為 completed。若第二階段需要手動結案、no-show 或爭議流程，再加入實際狀態轉換。
+
 ### 3.6 booking_cancelled_by
 
 
@@ -229,9 +231,10 @@ MVP 不保留 pending。使用者成功建立預約後，預設直接進入 conf
 
 用途：
 
+- 記錄 `null -> confirmed`
 - 記錄 `confirmed -> cancelled`
-- 記錄 `confirmed -> completed`
 - 保留會員或管理員變更預約狀態的歷史
+- MVP 階段 `completed` 為查詢時計算，不寫入狀態變更紀錄
 
 ## 4.6 sessions
 
@@ -279,8 +282,22 @@ Session 流程：
 用途：
 
 - 記錄 admin 建立、編輯、停用、隱藏服務
+- 記錄 admin 建立、編輯、批次產生時段
 - 記錄 admin 建立、編輯、取消預約
 - 記錄重要權限或資料異動
+
+MVP 階段必須寫入 audit log 的 action：
+
+| action | 說明 |
+| --- | --- |
+| admin.service.create | 建立服務 |
+| admin.service.update | 更新服務 |
+| admin.availability_slot.create | 建立單筆時段 |
+| admin.availability_slot.update | 更新時段 |
+| admin.availability_slot.bulk_generate | 批次產生時段 |
+| admin.booking.create | Admin 建立預約 |
+| admin.booking.update | Admin 更新預約備註 |
+| admin.booking.cancel | Admin 取消預約 |
 
 ## 5. 建議索引
 
@@ -380,7 +397,10 @@ Session 流程：
 
 - 可取消任意會員預約
 - 不受「4 小時前可取消」限制
+- 只能取消對外狀態為 confirmed 的預約
 - 需寫入 booking_status_logs 與 audit_logs
+
+若預約已取消，或已因結束時間已過而對外視為 completed，再次取消需回傳穩定錯誤，不應重複寫入取消紀錄。
 
 ## 8. Public API 查詢規則
 

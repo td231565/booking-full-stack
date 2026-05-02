@@ -83,6 +83,77 @@
 | RESOURCE_NOT_FOUND | 資源不存在 |
 | RATE_LIMITED | 請求過於頻繁 |
 | INTERNAL_ERROR | 未預期錯誤 |
+| EMAIL_ALREADY_USED | email 已被使用 |
+| INVALID_CREDENTIALS | 帳號或密碼錯誤 |
+| USER_DISABLED | 帳號已停用 |
+| SERVICE_NOT_FOUND | 服務不存在 |
+| SERVICE_NOT_ACTIVE | 服務不是啟用狀態 |
+| AVAILABILITY_SLOT_NOT_FOUND | 可預約時段不存在 |
+| BOOKING_SLOT_NOT_FOUND | 時段不存在 |
+| BOOKING_SLOT_UNAVAILABLE | 時段不可預約 |
+| BOOKING_TOO_SOON | 不可預約 1 小時內開始的時段 |
+| BOOKING_DUPLICATED | 使用者已預約同一時段 |
+| BOOKING_NOT_FOUND | 預約不存在 |
+| BOOKING_NOT_CANCELABLE | 預約狀態不可取消 |
+| BOOKING_CANCEL_TOO_LATE | 距離開始時間少於 4 小時 |
+| INVALID_TIME_RANGE | 時間區間格式錯誤 |
+
+### 2.5 預約狀態規則
+
+MVP 階段不提供手動標記完成 API。
+
+預約對外顯示狀態採用以下規則：
+
+- `cancelled`：預約已取消
+- `completed`：預約未取消，且 `slot.endAt` 已早於目前伺服器時間
+- `confirmed`：預約未取消，且 `slot.endAt` 尚未早於目前伺服器時間
+
+因此，`completed` 在 MVP 可由查詢時計算，不需要由 Admin 手動更新。若後續需要服務人員手動結案、no-show、退款或爭議流程，再新增獨立狀態轉換 API。
+
+### 2.6 Booking Status Log 規則
+
+以下操作必須寫入 `booking_status_logs`：
+
+| 操作 | from_status | to_status | changed_by | reason |
+| --- | --- | --- | --- | --- |
+| 會員建立預約 | null | confirmed | 目前會員 ID | null |
+| Admin 建立預約 | null | confirmed | Admin ID | 可為後台備註 |
+| 會員取消預約 | confirmed | cancelled | 目前會員 ID | 會員輸入原因 |
+| Admin 取消預約 | confirmed | cancelled | Admin ID | Admin 輸入原因 |
+
+MVP 階段 `completed` 為查詢時計算，因此不寫入 `booking_status_logs`。若第二階段改為實際狀態轉換，再補上 `confirmed -> completed` 的紀錄。
+
+### 2.7 Audit Log 規則
+
+MVP 階段下列後台操作必須寫入 `audit_logs`：
+
+| action | 觸發操作 | targetType | targetId | metadata 建議內容 |
+| --- | --- | --- | --- | --- |
+| admin.service.create | 建立服務 | service | serviceId | 建立欄位摘要 |
+| admin.service.update | 更新服務 | service | serviceId | 變更前後的欄位摘要 |
+| admin.availability_slot.create | 建立單筆時段 | availability_slot | slotId | serviceId、startAt、endAt |
+| admin.availability_slot.update | 更新時段 | availability_slot | slotId | 變更前後的欄位摘要 |
+| admin.availability_slot.bulk_generate | 批次產生時段 | service | serviceId | timezone、dateFrom、dateTo、created、skipped |
+| admin.booking.create | Admin 建立預約 | booking | bookingId | userId、availabilitySlotId |
+| admin.booking.update | Admin 更新預約備註 | booking | bookingId | 變更前後的 note 摘要 |
+| admin.booking.cancel | Admin 取消預約 | booking | bookingId | reason |
+
+會員自行註冊、登入、建立預約與取消預約不寫入 `audit_logs`，但會員建立與取消預約仍需寫入 `booking_status_logs`。登入失敗與 rate limit 事件可先寫應用程式安全 log，MVP 不強制進 `audit_logs`。
+
+### 2.8 Rate Limit 規則
+
+MVP 可先使用記憶體型 rate limit。若部署多個 instance，需改用 Redis 等集中式儲存，否則不同 instance 的計數不會共享。
+
+| API | key 建議 | MVP 建議限制 | 超過限制 |
+| --- | --- | --- | --- |
+| POST /api/auth/register | IP | 每 10 分鐘 5 次 | 回 `429 RATE_LIMITED` |
+| POST /api/auth/login | IP + email | 每 10 分鐘 5 次 | 回 `429 RATE_LIMITED`，不透露帳號是否存在 |
+| POST /api/bookings | userId | 每分鐘 5 次 | 回 `429 RATE_LIMITED` |
+| POST /api/me/bookings/:bookingId/cancel | userId | 每分鐘 5 次 | 回 `429 RATE_LIMITED` |
+| Public API | IP | 每分鐘 120 次 | 回 `429 RATE_LIMITED` |
+| Admin API | admin userId | 每分鐘 60 次 | 回 `429 RATE_LIMITED` |
+
+Rate limit 應在認證與授權流程附近處理，但不可取代權限檢查。Admin API 即使有 rate limit，仍必須檢查 `role = admin` 並寫入必要的 `audit_logs`。
 
 ## 3. 共用資料物件
 
@@ -432,6 +503,7 @@ Request body：
 - 同一時段只能有一筆有效預約
 - 同一會員不可重複預約同一時段
 - 成功後 `status = confirmed`
+- 成功後需寫入 `booking_status_logs`，記錄 `null -> confirmed`
 
 Response：
 
@@ -472,6 +544,11 @@ Query params：
 | page | 否 | 頁碼，預設 1 |
 | pageSize | 否 | 每頁筆數，預設 20 |
 | status | 否 | confirmed、cancelled、completed |
+
+規則：
+
+- `completed` 為查詢時計算狀態：預約未取消，且 `slot.endAt` 早於目前伺服器時間
+- 使用 `status=completed` 篩選時，回傳符合上述條件的預約
 
 Response：
 
@@ -564,6 +641,7 @@ Request body：
 - 只能取消開始時間至少在 4 小時後的預約
 - 成功後更新為 `status = cancelled`
 - `cancelledBy = user`
+- 成功後需寫入 `booking_status_logs`，記錄 `confirmed -> cancelled`
 
 Response：
 
@@ -591,7 +669,86 @@ Response：
 
 Admin API 需要登入且 `role = admin`。
 
-### 7.1 建立服務
+### 7.1 取得後台服務列表
+
+```text
+GET /api/admin/services
+```
+
+Query params：
+
+| 參數 | 必填 | 說明 |
+| --- | --- | --- |
+| page | 否 | 頁碼，預設 1 |
+| pageSize | 否 | 每頁筆數，預設 20 |
+| status | 否 | active、inactive、hidden |
+
+規則：
+
+- 後台可查詢 `active`、`inactive`、`hidden` 服務
+- 用於後台服務管理與時段管理的服務選單
+
+Response：
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "個人諮詢",
+      "description": "一對一諮詢服務",
+      "imageUrl": "https://example.com/service.jpg",
+      "durationMinutes": 60,
+      "price": 1200,
+      "status": "active",
+      "createdAt": "2026-05-01T02:00:00.000Z",
+      "updatedAt": "2026-05-01T02:00:00.000Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+### 7.2 取得後台服務詳情
+
+```text
+GET /api/admin/services/:serviceId
+```
+
+規則：
+
+- 後台可取得 `active`、`inactive`、`hidden` 服務詳情
+
+Response：
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "name": "個人諮詢",
+    "description": "一對一諮詢服務",
+    "imageUrl": "https://example.com/service.jpg",
+    "durationMinutes": 60,
+    "price": 1200,
+    "status": "active",
+    "createdAt": "2026-05-01T02:00:00.000Z",
+    "updatedAt": "2026-05-01T02:00:00.000Z"
+  }
+}
+```
+
+可能錯誤：
+
+| code | HTTP | 說明 |
+| --- | --- | --- |
+| SERVICE_NOT_FOUND | 404 | 服務不存在 |
+
+### 7.3 建立服務
 
 ```text
 POST /api/admin/services
@@ -628,7 +785,11 @@ Response：
 }
 ```
 
-### 7.2 更新服務
+規則：
+
+- 成功後需寫入 `audit_logs`，action 為 `admin.service.create`
+
+### 7.4 更新服務
 
 ```text
 PATCH /api/admin/services/:serviceId
@@ -652,8 +813,91 @@ Request body：
 - `status = inactive` 時，前台仍顯示但不可預約
 - `status = hidden` 時，前台列表與公開詳情 API 不回傳
 - 已有預約的服務不應直接刪除
+- 成功後需寫入 `audit_logs`，action 為 `admin.service.update`
 
-### 7.3 建立可預約時段
+### 7.5 取得後台可預約時段列表
+
+```text
+GET /api/admin/availability-slots
+```
+
+Query params：
+
+| 參數 | 必填 | 說明 |
+| --- | --- | --- |
+| page | 否 | 頁碼，預設 1 |
+| pageSize | 否 | 每頁筆數，預設 20 |
+| serviceId | 否 | 依服務篩選 |
+| status | 否 | available、blocked、inactive |
+| from | 否 | 依時段開始時間篩選，ISO 8601 |
+| to | 否 | 依時段開始時間篩選，ISO 8601 |
+
+規則：
+
+- 後台可查詢所有服務狀態下的時段
+- 回傳資料需包含服務基本資訊，方便後台列表顯示與篩選
+
+Response：
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "serviceId": "uuid",
+      "startAt": "2026-05-05T02:00:00.000Z",
+      "endAt": "2026-05-05T03:00:00.000Z",
+      "status": "available",
+      "service": {
+        "id": "uuid",
+        "name": "個人諮詢",
+        "durationMinutes": 60,
+        "status": "active"
+      }
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+### 7.6 取得後台可預約時段詳情
+
+```text
+GET /api/admin/availability-slots/:slotId
+```
+
+Response：
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "serviceId": "uuid",
+    "startAt": "2026-05-05T02:00:00.000Z",
+    "endAt": "2026-05-05T03:00:00.000Z",
+    "status": "available",
+    "service": {
+      "id": "uuid",
+      "name": "個人諮詢",
+      "durationMinutes": 60,
+      "status": "active"
+    }
+  }
+}
+```
+
+可能錯誤：
+
+| code | HTTP | 說明 |
+| --- | --- | --- |
+| AVAILABILITY_SLOT_NOT_FOUND | 404 | 可預約時段不存在 |
+
+### 7.7 建立可預約時段
 
 ```text
 POST /api/admin/availability-slots
@@ -676,8 +920,9 @@ Request body：
 - `endAt` 必須晚於 `startAt`
 - 時段長度需符合服務的 `durationMinutes`
 - 管理員建立時段不受會員的「1 小時後可預約」限制
+- 成功後需寫入 `audit_logs`，action 為 `admin.availability_slot.create`
 
-### 7.4 更新可預約時段
+### 7.8 更新可預約時段
 
 ```text
 PATCH /api/admin/availability-slots/:slotId
@@ -697,8 +942,9 @@ Request body：
 
 - 若時段已有有效預約，需避免直接改成會造成資料不一致的時間
 - 若需要取消既有預約，應透過 Admin 取消預約 API
+- 成功後需寫入 `audit_logs`，action 為 `admin.availability_slot.update`
 
-### 7.5 批次產生可預約時段
+### 7.9 批次產生可預約時段
 
 ```text
 POST /api/admin/availability-slots/bulk-generate
@@ -735,7 +981,8 @@ Request body：
 - 後端需將本地日期時間轉成 UTC 後存入 DB
 - 若產生的時段已存在，應跳過而不是建立重複資料
 - 管理員批次產生時段不受會員的「1 小時後可預約」限制
-- 成功後需寫入 `audit_logs`
+- 成功後需寫入 `audit_logs`，action 為 `admin.availability_slot.bulk_generate`
+- MVP 僅支援 `timezone = Asia/Taipei`；Asia/Taipei 沒有日光節約時間，暫不處理 DST 造成的不存在或重複本地時間
 
 Response：
 
@@ -757,7 +1004,7 @@ Response：
 | INVALID_TIME_RANGE | 400 | 時間區間格式錯誤 |
 | VALIDATION_ERROR | 400 | 輸入資料驗證失敗 |
 
-### 7.6 取得後台預約列表
+### 7.10 取得後台預約列表
 
 ```text
 GET /api/admin/bookings
@@ -774,6 +1021,11 @@ Query params：
 | userId | 否 | 依會員篩選 |
 | from | 否 | 依時段開始時間篩選，ISO 8601 |
 | to | 否 | 依時段開始時間篩選，ISO 8601 |
+
+規則：
+
+- `completed` 為查詢時計算狀態：預約未取消，且 `slot.endAt` 早於目前伺服器時間
+- 使用 `status=completed` 篩選時，回傳符合上述條件的預約
 
 Response：
 
@@ -809,7 +1061,7 @@ Response：
 }
 ```
 
-### 7.7 Admin 建立預約
+### 7.11 Admin 建立預約
 
 ```text
 POST /api/admin/bookings
@@ -830,9 +1082,10 @@ Request body：
 - Admin 可替任意會員建立預約
 - 不受「1 小時後可預約」限制
 - 仍需避免同一時段產生多筆有效預約
-- 成功後需寫入 `booking_status_logs` 與 `audit_logs`
+- 成功後需寫入 `booking_status_logs`，記錄 `null -> confirmed`
+- 成功後需寫入 `audit_logs`，action 為 `admin.booking.create`
 
-### 7.8 Admin 更新預約
+### 7.12 Admin 更新預約
 
 ```text
 PATCH /api/admin/bookings/:bookingId
@@ -850,29 +1103,9 @@ Request body：
 
 - MVP 先只開放更新 `note`
 - 若要調整時段，建議第二階段再加入改期 API，避免 MVP 預約一致性過度複雜
+- 成功後需寫入 `audit_logs`，action 為 `admin.booking.update`
 
-### 7.9 Admin 更新預約狀態
-
-```text
-PATCH /api/admin/bookings/:bookingId/status
-```
-
-Request body：
-
-```json
-{
-  "status": "completed",
-  "reason": "服務已完成"
-}
-```
-
-規則：
-
-- 允許 `confirmed -> completed`
-- 允許 `confirmed -> cancelled`
-- 成功後需寫入 `booking_status_logs` 與 `audit_logs`
-
-### 7.10 Admin 取消預約
+### 7.13 Admin 取消預約
 
 ```text
 POST /api/admin/bookings/:bookingId/cancel
@@ -890,10 +1123,20 @@ Request body：
 
 - 可取消任意會員預約
 - 不受「4 小時前可取消」限制
+- 只能取消對外狀態為 `confirmed` 的預約
 - `cancelledBy = admin`
-- 成功後需寫入 `booking_status_logs` 與 `audit_logs`
+- 成功後需寫入 `booking_status_logs`，記錄 `confirmed -> cancelled`
+- 成功後需寫入 `audit_logs`，action 為 `admin.booking.cancel`
 
-### 7.11 取得稽核紀錄
+重複取消情境：
+
+- 使用者或 Admin 連續點擊取消按鈕
+- 前端重試同一個取消請求
+- 會員與 Admin 幾乎同時取消同一筆預約
+
+若預約已是 `cancelled`，再次取消應回 `409 BOOKING_NOT_CANCELABLE`。若預約已因時間經過對外顯示為 `completed`，Admin 取消也應回 `409 BOOKING_NOT_CANCELABLE`。
+
+### 7.14 取得稽核紀錄
 
 ```text
 GET /api/admin/audit-logs
@@ -950,19 +1193,20 @@ Response：
 
 ## 9. Rate Limit 建議
 
-| API | 建議 |
-| --- | --- |
-| POST /api/auth/register | 必須限制，避免大量註冊 |
-| POST /api/auth/login | 必須限制，避免暴力破解 |
-| POST /api/bookings | 必須限制，避免重複或惡意預約 |
-| POST /api/me/bookings/:bookingId/cancel | 必須限制，避免惡意操作 |
-| Public API | 建議寬鬆限制，避免被大量查詢 |
-| Admin API | 建議限制，並搭配 audit log |
+Rate limit 的 key、限制值與超過限制時的回應，統一依照 `2.8 Rate Limit 規則`。
+
+驗證重點：
+
+- 達到限制後回 `429 RATE_LIMITED`
+- 登入失敗不可透露帳號是否存在
+- 建立與取消預約被限制時，不可產生資料異動
+- Admin API 被限制時，不可跳過原本的 `role = admin` 權限檢查
 
 ## 10. 暫不納入 MVP
 
 - 圖片上傳 API
 - 改期 API
+- 手動完成預約 API
 - 線上付款 API
 - Email / SMS 通知 API
 - 多店家 / 多租戶 API
