@@ -14,37 +14,37 @@
 
 目標：確認 DB schema、API 契約、錯誤格式、權限與前端流程已能支撐 MVP 實作。
 
-- [ ] `db_schema.md` 已定義 `users`、`services`、`availability_slots`、`bookings`、`booking_status_logs`、`sessions`、`audit_logs`
-- [ ] `db_schema.md` 已定義 `user_role`、`user_status`、`service_status`、`availability_slot_status`、`booking_status`、`booking_cancelled_by`
-- [ ] `db_schema.md` 已定義主要 constraint 與 partial unique index
-- [ ] `api_contract.md` 已定義成功回應、列表回應、無內容回應與錯誤回應格式
-- [ ] `api_contract.md` 已定義 Public、Auth、Member、Admin API endpoints
-- [ ] `api_contract.md` 已定義穩定錯誤碼與 HTTP status 對應
-- [ ] `api_contract.md` 已定義 rate limit 規則
-- [ ] `frontend_flow.md` 已定義公開頁、會員頁與後台頁路由
-- [ ] `frontend_flow.md` 已定義登入狀態、錯誤處理與 SSR / 快取規則
-- [ ] 權限規則已明確區分訪客、會員、管理員
-- [ ] 時間規則已明確定義 DB 儲存 UTC、API 回傳 ISO 8601、前端依使用者時區顯示
-- [ ] 契約文件之間沒有明顯衝突或未定義欄位
+- [x] `db_schema.md` 已定義 `users`、`services`、`availability_slots`、`bookings`、`booking_status_logs`、`sessions`、`audit_logs`
+- [x] `db_schema.md` 已定義 `user_role`、`user_status`、`service_status`、`availability_slot_status`、`booking_status`、`booking_cancelled_by`
+- [x] `db_schema.md` 已定義主要 constraint 與 partial unique index
+- [x] `api_contract.md` 已定義成功回應、列表回應、無內容回應與錯誤回應格式
+- [x] `api_contract.md` 已定義 Public、Auth、Member、Admin API endpoints
+- [x] `api_contract.md` 已定義穩定錯誤碼與 HTTP status 對應
+- [x] `api_contract.md` 已定義 rate limit 規則
+- [x] `frontend_flow.md` 已定義公開頁、會員頁與後台頁路由
+- [x] `frontend_flow.md` 已定義登入狀態、錯誤處理與 SSR / 快取規則
+- [x] 權限規則已明確區分訪客、會員、管理員
+- [x] 時間規則已明確定義 DB 儲存 UTC、API 回傳 ISO 8601、前端依使用者時區顯示
+- [x] 契約文件之間沒有明顯衝突或未定義欄位
 
 ## 3. Phase 2：前後端骨架
 
 目標：確認前後端專案結構、啟動流程、基礎 module、migration 與共用錯誤格式已建立。
 
-- [ ] 前端專案可啟動
-- [ ] 後端專案可啟動
-- [ ] PostgreSQL 連線設定可正常使用
-- [ ] Migration 可從空資料庫完整重建 schema
-- [ ] Migration 可重複套用與 rollback，且不留下半套狀態
-- [ ] 後端已建立 module / controller / service / repository 分層
-- [ ] 後端已建立 Auth、ServiceCatalog、Availability、Booking、Admin、AuditLog 等主要 module 空殼
-- [ ] 成功回應格式符合 `api_contract.md` 的 `data` 格式
-- [ ] 列表回應格式符合 `data + meta` 格式
-- [ ] 錯誤回應格式符合 `error.code + error.message` 格式
-- [ ] 前端已建立 App Router 主要頁面路由
-- [ ] 前端已建立基本 layout
-- [ ] 前端已建立 API client 與錯誤處理基礎
-- [ ] 前端已建立 loading / empty / error 狀態基礎
+- [x] 前端專案可啟動
+- [x] 後端專案可啟動
+- [x] PostgreSQL 連線設定可正常使用
+- [x] Migration 可從空資料庫完整重建 schema
+- [x] Migration 可重複套用與 rollback，且不留下半套狀態
+- [x] 後端已建立 module / controller / service / repository 分層
+- [x] 後端已建立 Auth、ServiceCatalog、Availability、Booking、Admin、AuditLog 等主要 module 空殼
+- [x] 成功回應格式符合 `api_contract.md` 的 `data` 格式
+- [x] 列表回應格式符合 `data + meta` 格式
+- [x] 錯誤回應格式符合 `error.code + error.message` 格式
+- [x] 前端已建立 App Router 主要頁面路由
+- [x] 前端已建立基本 layout
+- [x] 前端已建立 API client 與錯誤處理基礎
+- [x] 前端已建立 loading / empty / error 狀態基礎
 
 ## 4. Phase 3：公開服務瀏覽
 
