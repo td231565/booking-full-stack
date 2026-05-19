@@ -28,6 +28,14 @@ export class ApiExceptionFilter implements ExceptionFilter {
       return this.createErrorBody('FORBIDDEN', '權限不足');
     }
 
+    if (status === HttpStatus.BAD_REQUEST) {
+      return this.createErrorBody('VALIDATION_ERROR', '輸入資料驗證失敗');
+    }
+
+    if (status === HttpStatus.TOO_MANY_REQUESTS) {
+      return this.createErrorBody('RATE_LIMITED', '請求過於頻繁');
+    }
+
     return this.createErrorBody('INTERNAL_ERROR', '未預期錯誤');
   }
 

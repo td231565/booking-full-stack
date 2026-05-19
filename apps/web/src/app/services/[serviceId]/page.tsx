@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, ErrorState } from '@/components/ui/status-state';
 import { ApiClientError } from '@/lib/api/client';
@@ -8,6 +7,7 @@ import {
   PublicAvailabilitySlot,
   PublicService,
 } from '@/lib/services/public-services';
+import { BookingActions } from './booking-actions';
 
 type ServiceDetailPageProps = {
   params: Promise<{
@@ -83,9 +83,7 @@ function AvailabilityList({ service, slots }: { service: PublicService; slots: P
                 {formatTime(slot.startAt)} - {formatTime(slot.endAt)}
               </p>
             </div>
-            <Link className="button-link" href={`/login?redirect=/services/${service.id}`}>
-              登入後預約
-            </Link>
+            <BookingActions serviceId={service.id} slot={slot} />
           </article>
         ))}
       </div>

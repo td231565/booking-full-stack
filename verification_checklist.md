@@ -71,42 +71,42 @@
 
 目標：確認會員註冊、登入、建立預約、查看自己預約與取消預約流程完整且安全。
 
-- [ ] `users` migration 符合 `db_schema.md`
-- [ ] `sessions` migration 符合 `db_schema.md`
-- [ ] `bookings` migration 符合 `db_schema.md`
-- [ ] `booking_status_logs` migration 符合 `db_schema.md`
-- [ ] `users.email` unique index 正確存在
-- [ ] `sessions.session_token_hash` unique index 正確存在
-- [ ] `bookings.availability_slot_id` partial unique index 能阻擋同一時段多筆非 cancelled 預約
-- [ ] `bookings(user_id, availability_slot_id)` partial unique index 能阻擋同一會員重複預約同一時段
-- [ ] `POST /api/auth/register` 可建立 `role = user`、`status = active` 的會員
-- [ ] 註冊不回傳 `passwordHash`
-- [ ] 密碼使用 argon2id hash 後存入 DB
-- [ ] `POST /api/auth/login` 成功後建立 server-side session
-- [ ] Login Cookie 設定 `HttpOnly`
-- [ ] Login Cookie 設定 `Secure`
-- [ ] Login Cookie 設定 `SameSite=Lax`
-- [ ] DB 只存 `session_token_hash`
-- [ ] `GET /api/auth/me` 可依有效 session 回傳目前登入者
-- [ ] `POST /api/auth/logout` 會 revoke session 並清除 Cookie
-- [ ] 未登入呼叫 `POST /api/bookings` 會回 `401 UNAUTHENTICATED`
-- [ ] 會員建立預約時，後端忽略或拒絕前端傳入的 `userId`
-- [ ] 會員只能預約 `service.status = active` 的服務
-- [ ] 會員只能預約 `slot.status = available` 的時段
-- [ ] 會員不可預約過去時段
-- [ ] 會員不可預約 1 小時內開始的時段
-- [ ] 同時搶同一個 slot 時，只能成功建立一筆有效 booking
-- [ ] 同一會員不可重複預約同一時段
-- [ ] 會員建立預約成功後，會寫入 `booking_status_logs` 的 `null -> confirmed`
-- [ ] `GET /api/me/bookings` 只回傳目前登入者自己的預約
-- [ ] `GET /api/me/bookings/:bookingId` 不可取得他人預約，需回 `404`
-- [ ] 會員只能取消自己的預約
-- [ ] 會員只能取消對外狀態為 `confirmed` 的預約
-- [ ] 會員不可取消 4 小時內開始的預約
-- [ ] 會員取消預約成功後，會寫入 `booking_status_logs` 的 `confirmed -> cancelled`
-- [ ] 已取消預約再次取消時，回 `409 BOOKING_NOT_CANCELABLE`
-- [ ] 結束時間已過且未取消的預約，查詢時對外顯示為 `completed`
-- [ ] `completed` 不寫入 `booking_status_logs`
+- [x] `users` migration 符合 `db_schema.md`
+- [x] `sessions` migration 符合 `db_schema.md`
+- [x] `bookings` migration 符合 `db_schema.md`
+- [x] `booking_status_logs` migration 符合 `db_schema.md`
+- [x] `users.email` unique index 正確存在
+- [x] `sessions.session_token_hash` unique index 正確存在
+- [x] `bookings.availability_slot_id` partial unique index 能阻擋同一時段多筆非 cancelled 預約
+- [x] `bookings(user_id, availability_slot_id)` partial unique index 能阻擋同一會員重複預約同一時段
+- [x] `POST /api/auth/register` 可建立 `role = user`、`status = active` 的會員
+- [x] 註冊不回傳 `passwordHash`
+- [x] 密碼使用 argon2id hash 後存入 DB
+- [x] `POST /api/auth/login` 成功後建立 server-side session
+- [x] Login Cookie 設定 `HttpOnly`
+- [x] Login Cookie 設定 `Secure`
+- [x] Login Cookie 設定 `SameSite=Lax`
+- [x] DB 只存 `session_token_hash`
+- [x] `GET /api/auth/me` 可依有效 session 回傳目前登入者
+- [x] `POST /api/auth/logout` 會 revoke session 並清除 Cookie
+- [x] 未登入呼叫 `POST /api/bookings` 會回 `401 UNAUTHENTICATED`
+- [x] 會員建立預約時，後端忽略或拒絕前端傳入的 `userId`
+- [x] 會員只能預約 `service.status = active` 的服務
+- [x] 會員只能預約 `slot.status = available` 的時段
+- [x] 會員不可預約過去時段
+- [x] 會員不可預約 1 小時內開始的時段
+- [x] 同時搶同一個 slot 時，只能成功建立一筆有效 booking
+- [x] 同一會員不可重複預約同一時段
+- [x] 會員建立預約成功後，會寫入 `booking_status_logs` 的 `null -> confirmed`
+- [x] `GET /api/me/bookings` 只回傳目前登入者自己的預約
+- [x] `GET /api/me/bookings/:bookingId` 不可取得他人預約，需回 `404`
+- [x] 會員只能取消自己的預約
+- [x] 會員只能取消對外狀態為 `confirmed` 的預約
+- [x] 會員不可取消 4 小時內開始的預約
+- [x] 會員取消預約成功後，會寫入 `booking_status_logs` 的 `confirmed -> cancelled`
+- [x] 已取消預約再次取消時，回 `409 BOOKING_NOT_CANCELABLE`
+- [x] 結束時間已過且未取消的預約，查詢時對外顯示為 `completed`
+- [x] `completed` 不寫入 `booking_status_logs`
 
 ## 6. Phase 5：後台管理
 

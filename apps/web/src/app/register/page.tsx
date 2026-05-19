@@ -1,13 +1,13 @@
-import Link from 'next/link';
+import { RegisterForm } from './register-form';
 
-// 顯示註冊頁骨架，Phase 4 會加入表單與 POST /api/auth/register 串接。
+// 顯示註冊頁並串接會員註冊流程。
 export default function RegisterPage() {
   return (
     <main className="page">
       <section className="card">
         <h1>註冊</h1>
-        <p>此頁後續會處理 email、password、displayName 的註冊流程。</p>
-        <Link href="/login">已有帳號，前往登入</Link>
+        <p>註冊後可使用會員預約功能。</p>
+        <RegisterForm />
       </section>
     </main>
   );

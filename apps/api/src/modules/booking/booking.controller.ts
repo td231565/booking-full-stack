@@ -1,17 +1,89 @@
-import { Controller, Get } from '@nestjs/common';
-import { noContentResponse } from '../../common/api-response';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
+import { Request } from 'express';
+import { listResponse, successResponse } from '../../common/api-response';
+import { AuthService } from '../auth/auth.service';
+import { CancelBookingDto, CreateBookingDto } from './booking.dto';
 import { BookingService } from './booking.service';
 
-@Controller('bookings/module-status')
+@Controller()
 export class BookingController {
-  // 注入 BookingService，後續建立與取消預約的交易規則會集中在 service。
-  constructor(private readonly bookingService: BookingService) {}
+  // 注入 BookingService 與 AuthService，會員 API 以 server-side session 判斷目前使用者。
+  constructor(
+    private readonly bookingService: BookingService,
+    private readonly authService: AuthService,
+  ) {}
 
-  // 暫時提供 module 健康檢查，確認 booking 分層已建立。
-  @Get()
-  getModuleStatus() {
-    this.bookingService.ensureModuleReady();
+  // 建立會員自己的預約，後端忽略任何前端 userId，只使用 session user。
+  @Post('bookings')
+  async createBooking(@Req() request: Request, @Body() body: CreateBookingDto) {
+    const user = await this.authService.getCurrentUser(this.readSessionToken(request));
+    const booking = await this.bookingService.createBooking(user.id, body.availabilitySlotId, body.note);
 
-    return noContentResponse();
+    return successResponse(booking);
+  }
+
+  // 查詢目前會員自己的預約列表，支援分頁與對外狀態篩選。
+  @Get('me/bookings')
+  async getMyBookings(
+    @Req() request: Request,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+  ) {
+    const user = await this.authService.getCurrentUser(this.readSessionToken(request));
+    const result = await this.bookingService.getMyBookings(
+      user.id,
+      this.parsePositiveInt(page, 1),
+      this.parsePositiveInt(pageSize, 20),
+      status,
+    );
+
+    return listResponse(result.items, result.meta);
+  }
+
+  // 查詢目前會員自己的單筆預約，不可取得他人預約。
+  @Get('me/bookings/:bookingId')
+  async getMyBooking(@Req() request: Request, @Param('bookingId') bookingId: string) {
+    const user = await this.authService.getCurrentUser(this.readSessionToken(request));
+    const booking = await this.bookingService.getMyBooking(user.id, bookingId);
+
+    return successResponse(booking);
+  }
+
+  // 取消目前會員自己的預約，4 小時限制由後端最終判斷。
+  @Post('me/bookings/:bookingId/cancel')
+  @HttpCode(200)
+  async cancelMyBooking(@Req() request: Request, @Param('bookingId') bookingId: string, @Body() body: CancelBookingDto) {
+    const user = await this.authService.getCurrentUser(this.readSessionToken(request));
+    const booking = await this.bookingService.cancelMyBooking(user.id, bookingId, body.reason);
+
+    return successResponse(booking);
+  }
+
+  // 從 Cookie header 解析 session token，讓會員 API 不依賴前端傳入 userId。
+  private readSessionToken(request: Request): string | undefined {
+    const cookieHeader = request.headers.cookie;
+
+    if (!cookieHeader) {
+      return undefined;
+    }
+
+    const cookie = cookieHeader
+      .split(';')
+      .map((item) => item.trim())
+      .find((item) => item.startsWith(`${this.authService.getSessionCookieName()}=`));
+
+    return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : undefined;
+  }
+
+  // 將分頁 query 轉成正整數，無效值交由 service 套用保守預設值。
+  private parsePositiveInt(value: string | undefined, fallback: number): number {
+    if (!value) {
+      return fallback;
+    }
+
+    const parsed = Number.parseInt(value, 10);
+
+    return Number.isFinite(parsed) ? parsed : fallback;
   }
 }
