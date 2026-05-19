@@ -112,41 +112,41 @@
 
 目標：確認 Admin 權限、後台服務管理、時段管理、預約管理與 audit log 規則正確。
 
-- [ ] `audit_logs` migration 符合 `db_schema.md`
-- [ ] 未登入呼叫 Admin API 會回 `401 UNAUTHENTICATED`
-- [ ] 非 admin 呼叫 Admin API 會回 `403 FORBIDDEN`
-- [ ] Admin API 權限由後端 `role = admin` 檢查，不只依賴前端 route guard
-- [ ] `GET /api/admin/services` 可查詢 `active`、`inactive`、`hidden` 服務
-- [ ] `GET /api/admin/services/:serviceId` 可取得 `hidden` 服務詳情
-- [ ] Admin 建立服務成功後，寫入 `admin.service.create` audit log
-- [ ] Admin 更新服務成功後，寫入 `admin.service.update` audit log
-- [ ] Admin 可建立 active 服務的單筆可預約時段
-- [ ] Admin 不可替 inactive 或 hidden 服務建立新時段
-- [ ] Admin 建立時段時，需驗證時段長度符合服務 `durationMinutes`
-- [ ] Admin 建立時段不受會員的 1 小時後預約限制
-- [ ] Admin 建立單筆時段成功後，寫入 `admin.availability_slot.create` audit log
-- [ ] Admin 更新時段成功後，寫入 `admin.availability_slot.update` audit log
-- [ ] Admin 批次產生時段僅支援 `Asia/Taipei`
-- [ ] Admin 批次產生時段會跳過已存在時段，不建立重複資料
-- [ ] Admin 批次產生時段成功後，回傳 `created` 與 `skipped`
-- [ ] Admin 批次產生時段成功後，寫入 `admin.availability_slot.bulk_generate` audit log
-- [ ] `GET /api/admin/bookings` 可查詢所有會員預約
-- [ ] Admin 可替任意會員建立預約
-- [ ] Admin 建立預約不受會員的 1 小時後預約限制
-- [ ] Admin 建立預約仍不可造成同一時段多筆有效 booking
-- [ ] Admin 建立預約成功後，寫入 `booking_status_logs` 的 `null -> confirmed`
-- [ ] Admin 建立預約成功後，寫入 `admin.booking.create` audit log
-- [ ] Admin 更新預約備註成功後，寫入 `admin.booking.update` audit log
-- [ ] Admin 可取消任意會員對外狀態為 `confirmed` 的預約
-- [ ] Admin 取消預約不受會員的 4 小時前取消限制
-- [ ] Admin 取消預約成功後，寫入 `booking_status_logs` 的 `confirmed -> cancelled`
-- [ ] Admin 取消預約成功後，寫入 `admin.booking.cancel` audit log
-- [ ] Admin 重複取消已取消預約時，回 `409 BOOKING_NOT_CANCELABLE`
-- [ ] Admin 取消已 completed 預約時，回 `409 BOOKING_NOT_CANCELABLE`
-- [ ] MVP 不提供 `PATCH /api/admin/bookings/:bookingId/status`
-- [ ] MVP 不提供手動完成預約 API
-- [ ] `GET /api/admin/audit-logs` 可查詢指定操作紀錄
-- [ ] 查詢類 Admin API 暫不寫入 audit log
+- [x] `audit_logs` migration 符合 `db_schema.md`
+- [x] 未登入呼叫 Admin API 會回 `401 UNAUTHENTICATED`
+- [x] 非 admin 呼叫 Admin API 會回 `403 FORBIDDEN`
+- [x] Admin API 權限由後端 `role = admin` 檢查，不只依賴前端 route guard
+- [x] `GET /api/admin/services` 可查詢 `active`、`inactive`、`hidden` 服務
+- [x] `GET /api/admin/services/:serviceId` 可取得 `hidden` 服務詳情
+- [x] Admin 建立服務成功後，寫入 `admin.service.create` audit log
+- [x] Admin 更新服務成功後，寫入 `admin.service.update` audit log
+- [x] Admin 可建立 active 服務的單筆可預約時段
+- [x] Admin 不可替 inactive 或 hidden 服務建立新時段
+- [x] Admin 建立時段時，需驗證時段長度符合服務 `durationMinutes`
+- [x] Admin 建立時段不受會員的 1 小時後預約限制
+- [x] Admin 建立單筆時段成功後，寫入 `admin.availability_slot.create` audit log
+- [x] Admin 更新時段成功後，寫入 `admin.availability_slot.update` audit log
+- [x] Admin 批次產生時段僅支援 `Asia/Taipei`
+- [x] Admin 批次產生時段會跳過已存在時段，不建立重複資料
+- [x] Admin 批次產生時段成功後，回傳 `created` 與 `skipped`
+- [x] Admin 批次產生時段成功後，寫入 `admin.availability_slot.bulk_generate` audit log
+- [x] `GET /api/admin/bookings` 可查詢所有會員預約
+- [x] Admin 可替任意會員建立預約
+- [x] Admin 建立預約不受會員的 1 小時後預約限制
+- [x] Admin 建立預約仍不可造成同一時段多筆有效 booking
+- [x] Admin 建立預約成功後，寫入 `booking_status_logs` 的 `null -> confirmed`
+- [x] Admin 建立預約成功後，寫入 `admin.booking.create` audit log
+- [x] Admin 更新預約備註成功後，寫入 `admin.booking.update` audit log
+- [x] Admin 可取消任意會員對外狀態為 `confirmed` 的預約
+- [x] Admin 取消預約不受會員的 4 小時前取消限制
+- [x] Admin 取消預約成功後，寫入 `booking_status_logs` 的 `confirmed -> cancelled`
+- [x] Admin 取消預約成功後，寫入 `admin.booking.cancel` audit log
+- [x] Admin 重複取消已取消預約時，回 `409 BOOKING_NOT_CANCELABLE`
+- [x] Admin 取消已 completed 預約時，回 `409 BOOKING_NOT_CANCELABLE`
+- [x] MVP 不提供 `PATCH /api/admin/bookings/:bookingId/status`
+- [x] MVP 不提供手動完成預約 API
+- [x] `GET /api/admin/audit-logs` 可查詢指定操作紀錄
+- [x] 查詢類 Admin API 暫不寫入 audit log
 
 ## 7. Phase 6：風險補強與驗收
 
