@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { EmptyState, ErrorState } from '@/components/ui/status-state';
 import { AdminBooking, getAdminBookings } from '@/lib/admin/admin-api';
-import { ApiClientError } from '@/lib/api/client';
+import { getAdminErrorMessage } from '@/lib/api/error-messages';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +31,7 @@ export default async function AdminBookingsPage() {
   } catch (error) {
     return (
       <main className="page">
-        <ErrorState title="預約資料無法載入" description={getErrorMessage(error)} />
+        <ErrorState title="預約資料無法載入" description={getAdminErrorMessage(error)} />
       </main>
     );
   }
@@ -72,13 +72,4 @@ function formatDateTime(value: string): string {
     timeStyle: 'short',
     timeZone: 'Asia/Taipei',
   }).format(new Date(value));
-}
-
-// 將 API 錯誤轉為頁面可讀訊息，未知錯誤使用通用提示。
-function getErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    return error.message;
-  }
-
-  return '請稍後再試。';
 }

@@ -15,7 +15,6 @@
     "@nestjs/config": "latest",
     "@nestjs/core": "latest",
     "@nestjs/platform-express": "latest",
-    "@nestjs/throttler": "latest",
     "@nestjs/typeorm": "latest",
     "argon2": "^0.44.0",
     "class-transformer": "^0.5.1",

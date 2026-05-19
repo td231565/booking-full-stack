@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApiClientError } from '@/lib/api/client';
+import { getApiErrorMessage } from '@/lib/api/error-messages';
 import { createBooking } from '@/lib/bookings/member-bookings';
 import { PublicAvailabilitySlot } from '@/lib/services/public-services';
 
@@ -33,6 +34,11 @@ export function BookingActions({ serviceId, slot }: BookingActionsProps) {
       if (error instanceof ApiClientError && error.code === 'UNAUTHENTICATED') {
         router.push(`/login?redirect=/services/${serviceId}`);
         return;
+      }
+
+      if (error instanceof ApiClientError && error.code === 'BOOKING_SLOT_UNAVAILABLE') {
+        // 時段已被搶走時刷新頁面，讓 availability 列表與後端同步。
+        router.refresh();
       }
 
       setErrorMessage(getBookingErrorMessage(error));
@@ -74,7 +80,7 @@ function getBookingErrorMessage(error: unknown): string {
       return '你已預約過此時段。';
     }
 
-    return error.message;
+    return getApiErrorMessage(error);
   }
 
   return '系統暫時無法處理請求。';

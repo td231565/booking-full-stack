@@ -322,7 +322,7 @@ UPDATE users SET role = 'admin' WHERE email = '你的-email@example.com';
 - **授權**：後端不信任前端傳入的 `userId` / `role`；會員只能存取自己的預約
 - **Session**：Cookie 設定 `HttpOnly`、`Secure`、`SameSite=Lax`；DB 僅存 token hash
 - **快取**：會員頁與後台頁使用 `dynamic = 'force-dynamic'`，避免 SSR 共享私人資料
-- **Rate limit**：全站已掛載 Throttler（細部規則見 api_contract）
+- **Rate limit**：依 `api_contract.md` §2.8 分路由限流（`npm run verify:phase6` 可驗證）
 
 ## 疑難排解
 

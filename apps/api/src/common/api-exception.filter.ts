@@ -1,17 +1,37 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
-import { Response } from 'express';
-import { ApiErrorBody } from './api-exception';
+import { Request, Response } from 'express';
+import { ApiErrorBody, ApiException } from './api-exception';
+import { readRequestId } from './request-id.middleware';
+import { logApiError } from './safe-logger';
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
   // 將所有未處理例外轉成穩定的 error.code + error.message 格式。
   catch(exception: unknown, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<Response>();
+    const http = host.switchToHttp();
+    const request = http.getRequest<Request>();
+    const response = http.getResponse<Response>();
     const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     const exceptionResponse = exception instanceof HttpException ? exception.getResponse() : null;
     const body = this.toErrorBody(exceptionResponse, status);
 
+    if (status >= HttpStatus.BAD_REQUEST) {
+      this.logError(request, exception, body, status);
+    }
+
     response.status(status).json(body);
+  }
+
+  // 記錄錯誤 log，保留 request id 且不寫入密碼或 token。
+  private logError(request: Request, exception: unknown, body: ApiErrorBody, status: number): void {
+    logApiError({
+      requestId: readRequestId(request),
+      code: body.error.code,
+      message: body.error.message,
+      status,
+      path: request.originalUrl,
+      detail: exception instanceof ApiException ? undefined : exception,
+    });
   }
 
   // 保留已符合契約的錯誤格式，其餘錯誤統一收斂成通用錯誤碼。

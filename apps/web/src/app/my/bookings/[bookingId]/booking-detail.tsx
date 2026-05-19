@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/status-state';
 import { ApiClientError } from '@/lib/api/client';
+import { getApiErrorMessage } from '@/lib/api/error-messages';
 import { BookingDetail, cancelMyBooking, getMyBooking } from '@/lib/bookings/member-bookings';
 
 type BookingDetailClientProps = {
@@ -67,6 +68,16 @@ export function BookingDetailClient({ bookingId }: BookingDetailClientProps) {
       setBooking(response.data);
       setReason('');
     } catch (error) {
+      if (error instanceof ApiClientError && error.code === 'BOOKING_NOT_CANCELABLE') {
+        // 狀態可能已變更，重新取得詳情以顯示目前狀態。
+        try {
+          const response = await getMyBooking(bookingId);
+          setBooking(response.data);
+        } catch {
+          // 重新載入失敗時仍顯示下方錯誤訊息。
+        }
+      }
+
       setErrorMessage(getCancelErrorMessage(error));
     } finally {
       setIsCancelling(false);
@@ -138,10 +149,10 @@ function getCancelErrorMessage(error: unknown): string {
     }
 
     if (error.code === 'BOOKING_NOT_CANCELABLE') {
-      return '此預約目前不可取消，請重新載入詳情確認狀態。';
+      return '此預約目前不可取消，請確認上方狀態。';
     }
 
-    return error.message;
+    return getApiErrorMessage(error);
   }
 
   return '系統暫時無法處理請求。';

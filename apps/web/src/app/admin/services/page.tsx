@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { EmptyState, ErrorState } from '@/components/ui/status-state';
-import { ApiClientError } from '@/lib/api/client';
+import { getAdminErrorMessage } from '@/lib/api/error-messages';
 import { AdminService, getAdminServices } from '@/lib/admin/admin-api';
 
 export const dynamic = 'force-dynamic';
@@ -31,7 +31,7 @@ export default async function AdminServicesPage() {
   } catch (error) {
     return (
       <main className="page">
-        <ErrorState title="服務管理資料無法載入" description={getErrorMessage(error)} />
+        <ErrorState title="服務管理資料無法載入" description={getAdminErrorMessage(error)} />
       </main>
     );
   }
@@ -69,13 +69,4 @@ function formatPrice(price: number): string {
     currency: 'TWD',
     maximumFractionDigits: 0,
   }).format(price);
-}
-
-// 將 API 錯誤轉為頁面可讀訊息，未知錯誤使用通用提示。
-function getErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    return error.message;
-  }
-
-  return '請稍後再試。';
 }

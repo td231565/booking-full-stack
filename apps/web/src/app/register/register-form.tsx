@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApiClientError, ApiSuccessResponse, apiFetch } from '@/lib/api/client';
+import { getApiErrorMessage } from '@/lib/api/error-messages';
 import { CurrentUser } from '@/lib/auth/get-current-user';
 
 // 顯示註冊表單並串接 POST /api/auth/register，成功後導向登入頁。
@@ -88,7 +89,7 @@ function getRegisterErrorMessage(error: unknown): string {
       return '請確認 email、顯示名稱與密碼格式。';
     }
 
-    return error.message;
+    return getApiErrorMessage(error);
   }
 
   return '系統暫時無法處理請求。';

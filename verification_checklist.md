@@ -152,42 +152,42 @@
 
 目標：確認 rate limit、錯誤碼、快取、安全與 E2E 驗證足以支撐 MVP 驗收。
 
-- [ ] `POST /api/auth/register` 超過限制時回 `429 RATE_LIMITED`
-- [ ] `POST /api/auth/login` 超過限制時回 `429 RATE_LIMITED`
-- [ ] 登入 rate limit key 使用 IP + email
-- [ ] 登入失敗訊息不透露帳號是否存在
-- [ ] `POST /api/bookings` 超過限制時回 `429 RATE_LIMITED`
-- [ ] `POST /api/me/bookings/:bookingId/cancel` 超過限制時回 `429 RATE_LIMITED`
-- [ ] Public API 超過限制時回 `429 RATE_LIMITED`
-- [ ] Admin API 超過限制時回 `429 RATE_LIMITED`
-- [ ] 建立預約被 rate limit 擋下時，不可產生 booking
-- [ ] 取消預約被 rate limit 擋下時，不可異動 booking
-- [ ] 重複送出建立預約請求不會產生多筆有效 booking
-- [ ] 前端可依 `error.code` 對應穩定 UI 訊息
-- [ ] `BOOKING_SLOT_UNAVAILABLE` 會顯示時段不可預約並刷新 availability
-- [ ] `BOOKING_TOO_SOON` 會顯示只能預約 1 小時後的時段
-- [ ] `BOOKING_CANCEL_TOO_LATE` 會顯示少於 4 小時不可取消
-- [ ] `BOOKING_NOT_CANCELABLE` 會重新取得預約詳情並顯示目前狀態
-- [ ] 會員頁使用 no-store 或等效方式避免共享快取
-- [ ] 後台頁使用 no-store 或等效方式避免共享快取
-- [ ] SSR 不將 session token 或敏感資料注入公開頁
-- [ ] Log 不記錄密碼、token、完整 Cookie
-- [ ] 錯誤 log 保留 request id
-- [ ] E2E 覆蓋公開服務瀏覽
-- [ ] E2E 覆蓋登入後建立預約
-- [ ] E2E 覆蓋會員取消預約
-- [ ] E2E 覆蓋非 admin 被阻擋
-- [ ] E2E 覆蓋 admin 建立服務、建立時段、建立預約、取消預約
+- [x] `POST /api/auth/register` 超過限制時回 `429 RATE_LIMITED`
+- [x] `POST /api/auth/login` 超過限制時回 `429 RATE_LIMITED`
+- [x] 登入 rate limit key 使用 IP + email
+- [x] 登入失敗訊息不透露帳號是否存在
+- [x] `POST /api/bookings` 超過限制時回 `429 RATE_LIMITED`
+- [x] `POST /api/me/bookings/:bookingId/cancel` 超過限制時回 `429 RATE_LIMITED`
+- [x] Public API 超過限制時回 `429 RATE_LIMITED`
+- [x] Admin API 超過限制時回 `429 RATE_LIMITED`
+- [x] 建立預約被 rate limit 擋下時，不可產生 booking
+- [x] 取消預約被 rate limit 擋下時，不可異動 booking
+- [x] 重複送出建立預約請求不會產生多筆有效 booking
+- [x] 前端可依 `error.code` 對應穩定 UI 訊息
+- [x] `BOOKING_SLOT_UNAVAILABLE` 會顯示時段不可預約並刷新 availability
+- [x] `BOOKING_TOO_SOON` 會顯示只能預約 1 小時後的時段
+- [x] `BOOKING_CANCEL_TOO_LATE` 會顯示少於 4 小時不可取消
+- [x] `BOOKING_NOT_CANCELABLE` 會重新取得預約詳情並顯示目前狀態
+- [x] 會員頁使用 no-store 或等效方式避免共享快取
+- [x] 後台頁使用 no-store 或等效方式避免共享快取
+- [x] SSR 不將 session token 或敏感資料注入公開頁
+- [x] Log 不記錄密碼、token、完整 Cookie
+- [x] 錯誤 log 保留 request id
+- [x] E2E 覆蓋公開服務瀏覽
+- [x] E2E 覆蓋登入後建立預約
+- [x] E2E 覆蓋會員取消預約
+- [x] E2E 覆蓋非 admin 被阻擋
+- [x] E2E 覆蓋 admin 建立服務、建立時段、建立預約、取消預約
 
 ## 8. 完整性檢查
 
 已對照 `MVP_SPEC.md`、`api_contract.md`、`db_schema.md`、`frontend_flow.md` 與 `implementation_plan.md` 檢查，補齊以下原始建議未明確列出的驗證點：
 
-- [ ] `completed` 為查詢時計算，不提供手動完成 API
-- [ ] 會員與 Admin 建立、取消預約都需寫入 `booking_status_logs`
-- [ ] Admin 指定操作需寫入對應 `audit_logs.action`
-- [ ] 後台可查詢 hidden 服務，但 Public API 不可回傳 hidden 服務
-- [ ] MVP 批次產生時段固定 `Asia/Taipei`，暫不處理 DST 日期邊界
-- [ ] Admin 取消預約與手動狀態更新 API 不重疊
-- [ ] 查詢類 Admin API 暫不寫入 audit log
-- [ ] Rate limit 不可取代認證與授權檢查
+- [x] `completed` 為查詢時計算，不提供手動完成 API
+- [x] 會員與 Admin 建立、取消預約都需寫入 `booking_status_logs`
+- [x] Admin 指定操作需寫入對應 `audit_logs.action`
+- [x] 後台可查詢 hidden 服務，但 Public API 不可回傳 hidden 服務
+- [x] MVP 批次產生時段固定 `Asia/Taipei`，暫不處理 DST 日期邊界
+- [x] Admin 取消預約與手動狀態更新 API 不重疊
+- [x] 查詢類 Admin API 暫不寫入 audit log
+- [x] Rate limit 不可取代認證與授權檢查
