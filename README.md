@@ -148,14 +148,16 @@ WEB_ORIGIN=http://127.0.0.1:3000
 ### 4. 執行資料庫 migration
 
 ```bash
-npm run migration:run
+npm run db:migrate
 ```
 
 若要還原最後一版 migration：
 
 ```bash
-npm run migration:revert
+npm run db:migrate:revert
 ```
+
+> 請在專案根目錄執行上述指令。根目錄勿使用與 `apps/api` 同名的 `migration:run`，否則 npm 會無限遞迴；若需直接操作，可改在 `apps/api` 執行 `npm run migration:run`。
 
 ### 5. 啟動開發伺服器
 

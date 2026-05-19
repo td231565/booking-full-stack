@@ -7,9 +7,16 @@ import { ApiExceptionFilter } from './common/api-exception.filter';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
-  // 允許前端以 credentials 呼叫 API，讓 HttpOnly session cookie 可跨本機 port 傳遞。
+  // 允許前端以 credentials 呼叫 API；本機預設同時開放 localhost 與 127.0.0.1，避免網址不一致被 CORS 擋下。
+  const webOrigins = Array.from(
+    new Set([
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      ...(process.env.WEB_ORIGIN ? [process.env.WEB_ORIGIN] : []),
+    ]),
+  );
   app.enableCors({
-    origin: process.env.WEB_ORIGIN ?? 'http://127.0.0.1:3000',
+    origin: webOrigins,
     credentials: true,
   });
   app.setGlobalPrefix('api');
