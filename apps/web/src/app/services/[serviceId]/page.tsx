@@ -1,4 +1,13 @@
-import { EmptyState } from '@/components/ui/status-state';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { EmptyState, ErrorState } from '@/components/ui/status-state';
+import { ApiClientError } from '@/lib/api/client';
+import {
+  getPublicAvailability,
+  getPublicService,
+  PublicAvailabilitySlot,
+  PublicService,
+} from '@/lib/services/public-services';
 
 type ServiceDetailPageProps = {
   params: Promise<{
@@ -6,18 +15,119 @@ type ServiceDetailPageProps = {
   }>;
 };
 
-// 顯示服務詳情頁骨架，Phase 3 會串接服務詳情與可預約時段 API。
+// 串接公開服務詳情與可預約時段 API，訪客不用登入即可瀏覽。
 export default async function ServiceDetailPage({ params }: ServiceDetailPageProps) {
   const { serviceId } = await params;
 
+  try {
+    const [serviceResponse, availabilityResponse] = await Promise.all([
+      getPublicService(serviceId),
+      getPublicAvailability(serviceId),
+    ]);
+
+    return (
+      <main className="page">
+        <ServiceSummary service={serviceResponse.data} />
+        <AvailabilityList service={serviceResponse.data} slots={availabilityResponse.data} />
+      </main>
+    );
+  } catch (error) {
+    if (error instanceof ApiClientError && error.code === 'SERVICE_NOT_FOUND') {
+      notFound();
+    }
+
+    return (
+      <main className="page">
+        <ErrorState title="服務詳情暫時無法載入" description={getErrorMessage(error)} />
+      </main>
+    );
+  }
+}
+
+// 顯示服務基本資訊，inactive 服務會明確說明目前不可預約。
+function ServiceSummary({ service }: { service: PublicService }) {
   return (
-    <main className="page">
-      <section className="card">
-        <h1>服務詳情</h1>
-        <p>服務 ID：{serviceId}</p>
-        <p>此頁後續會顯示服務狀態、價格、時長與可預約時段。</p>
-      </section>
-      <EmptyState title="尚未載入可預約時段" description="Phase 3 會串接 availability API。" />
-    </main>
+    <section className="card detail-card">
+      <div className="service-card__header">
+        <h1>{service.name}</h1>
+        <span className={`badge badge--${service.status}`}>{service.status === 'active' ? '可預約' : '暫停預約'}</span>
+      </div>
+      <p>{service.description ?? '此服務尚未提供說明。'}</p>
+      <p>
+        {formatDuration(service.durationMinutes)} · {formatPrice(service.price)}
+      </p>
+      {service.status === 'inactive' ? <p className="notice">此服務目前暫停預約，仍可查看服務內容。</p> : null}
+    </section>
   );
+}
+
+// 顯示可預約時段清單，inactive 服務不顯示預約入口。
+function AvailabilityList({ service, slots }: { service: PublicService; slots: PublicAvailabilitySlot[] }) {
+  if (service.status !== 'active') {
+    return <EmptyState title="目前不可預約" description="此服務暫停接受新預約。" />;
+  }
+
+  if (slots.length === 0) {
+    return <EmptyState title="目前沒有可預約時段" description="請稍後再回來查看。" />;
+  }
+
+  return (
+    <section className="card">
+      <h2>可預約時段</h2>
+      <div className="slot-list">
+        {slots.map((slot) => (
+          <article className="slot" key={slot.id}>
+            <div>
+              <strong>{formatDateTime(slot.startAt)}</strong>
+              <p>
+                {formatTime(slot.startAt)} - {formatTime(slot.endAt)}
+              </p>
+            </div>
+            <Link className="button-link" href={`/login?redirect=/services/${service.id}`}>
+              登入後預約
+            </Link>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// 格式化服務金額，讓價格以台幣整數呈現。
+function formatPrice(price: number): string {
+  return new Intl.NumberFormat('zh-TW', {
+    style: 'currency',
+    currency: 'TWD',
+    maximumFractionDigits: 0,
+  }).format(price);
+}
+
+// 格式化服務時長，讓詳情資訊維持一致呈現。
+function formatDuration(durationMinutes: number): string {
+  return `${durationMinutes} 分鐘`;
+}
+
+// 格式化時段日期，使用台灣常見日期時間格式呈現。
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat('zh-TW', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+// 格式化同日時段時間，避免每個區間重複顯示完整日期。
+function formatTime(value: string): string {
+  return new Intl.DateTimeFormat('zh-TW', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+// 將 API 錯誤轉為頁面可讀訊息，未知錯誤使用通用提示。
+function getErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError) {
+    return error.message;
+  }
+
+  return '請稍後再試。';
 }

@@ -50,22 +50,22 @@
 
 目標：確認訪客不登入即可查看公開服務與可預約時段，且服務狀態規則正確。
 
-- [ ] `services` migration 符合 `db_schema.md`
-- [ ] `availability_slots` migration 符合 `db_schema.md`
-- [ ] `duration_minutes > 0`、`price >= 0`、`end_at > start_at` 等 constraint 正確存在
-- [ ] `GET /api/services` 會回傳 `active` 服務
-- [ ] `GET /api/services` 會回傳 `inactive` 服務
-- [ ] `GET /api/services` 不會回傳 `hidden` 服務
-- [ ] `GET /api/services/:serviceId` 可回傳 `active` 服務詳情
-- [ ] `GET /api/services/:serviceId` 可回傳 `inactive` 服務詳情
-- [ ] `GET /api/services/:serviceId` 不會回傳 `hidden` 服務詳情
-- [ ] `inactive` 服務在前端清楚顯示不可預約
-- [ ] `GET /api/services/:serviceId/availability` 只回傳 `service.status = active` 的時段
-- [ ] `GET /api/services/:serviceId/availability` 只回傳 `slot.status = available` 的時段
-- [ ] `GET /api/services/:serviceId/availability` 只回傳開始時間至少在 1 小時後的時段
-- [ ] `GET /api/services/:serviceId/availability` 會排除已有非 cancelled booking 的時段
-- [ ] 公開頁面不載入會員私人資料
-- [ ] 公開頁面快取不會混入 session 相關資料
+- [x] `services` migration 符合 `db_schema.md`
+- [x] `availability_slots` migration 符合 `db_schema.md`
+- [x] `duration_minutes > 0`、`price >= 0`、`end_at > start_at` 等 constraint 正確存在
+- [x] `GET /api/services` 會回傳 `active` 服務
+- [x] `GET /api/services` 會回傳 `inactive` 服務
+- [x] `GET /api/services` 不會回傳 `hidden` 服務
+- [x] `GET /api/services/:serviceId` 可回傳 `active` 服務詳情
+- [x] `GET /api/services/:serviceId` 可回傳 `inactive` 服務詳情
+- [x] `GET /api/services/:serviceId` 不會回傳 `hidden` 服務詳情
+- [x] `inactive` 服務在前端清楚顯示不可預約
+- [x] `GET /api/services/:serviceId/availability` 只回傳 `service.status = active` 的時段
+- [x] `GET /api/services/:serviceId/availability` 只回傳 `slot.status = available` 的時段
+- [x] `GET /api/services/:serviceId/availability` 只回傳開始時間至少在 1 小時後的時段
+- [x] `GET /api/services/:serviceId/availability` 會排除已有非 cancelled booking 的時段
+- [x] 公開頁面不載入會員私人資料
+- [x] 公開頁面快取不會混入 session 相關資料
 
 ## 5. Phase 4：會員與預約
 

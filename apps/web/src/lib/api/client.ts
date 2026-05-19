@@ -29,7 +29,7 @@ export class ApiClientError extends Error {
 
 // 呼叫後端 API 並統一解析成功與錯誤回應格式。
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001'}${path}`, {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:3001'}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
