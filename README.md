@@ -184,6 +184,48 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:3001
 | 後端健康檢查 | http://127.0.0.1:3001/api/health |
 | 前端首頁 | http://127.0.0.1:3000 |
 
+### 7. 關閉所有服務
+
+依啟動順序的**反向**關閉即可。
+
+#### 1. 停止開發伺服器
+
+在執行 `npm run dev:api`、`npm run dev:web` 的終端機各按 **`Ctrl + C`**，直到程序結束並回到 shell 提示符。
+
+若終端機已關閉但 port 仍被佔用，可在專案根目錄查詢並結束（擇一使用）：
+
+```bash
+# 查看 3000、3001 是否仍被佔用
+lsof -i :3000 -i :3001
+
+# 依 PID 結束（將 <PID> 換成上一步查到的數字）
+kill <PID>
+```
+
+#### 2. 停止 PostgreSQL（Docker）
+
+在專案根目錄執行：
+
+```bash
+docker compose down
+```
+
+容器停止後，本機 **5432** 會釋放；資料仍保留在 Docker volume `postgres_data` 中，下次 `docker compose up -d` 會沿用原資料。
+
+若要**一併刪除資料庫資料**（下次需重新 `db:migrate`）：
+
+```bash
+docker compose down -v
+```
+
+#### 3. 確認已全部關閉（選用）
+
+```bash
+docker compose ps          # 應無 booking 相關容器在運行
+lsof -i :3000 -i :3001     # 應無 LISTEN（除非其他程式佔用該 port）
+lsof -i :5432              # 若只用本專案 Docker Postgres，應無 LISTEN
+```
+
 ### 其他常用指令
 
 ```bash
