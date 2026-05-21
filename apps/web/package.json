@@ -5,13 +5,23 @@
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "start": "next start",
-    "typecheck": "next typegen && tsc --noEmit -p tsconfig.typecheck.json"
+    "typecheck": "next typegen && tsc --noEmit -p tsconfig.typecheck.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@vitejs/plugin-react": "^6.0.2",
+    "@vitest/coverage-v8": "^4.1.7",
+    "happy-dom": "^20.9.0",
+    "msw": "^2.14.6",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
     "swr": "latest",
+    "vitest": "^4.1.7",
     "zod": "latest"
   },
   "devDependencies": {

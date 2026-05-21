@@ -42,6 +42,21 @@ export async function promoteUserToAdmin(email: string): Promise<void> {
   await ds.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [email.trim().toLowerCase()]);
 }
 
+// 停用指定 email 的使用者，供登入邊界測試使用。
+export async function disableUser(email: string): Promise<void> {
+  const ds = await getDataSource();
+  await ds.query(`UPDATE users SET status = 'disabled' WHERE email = $1`, [email.trim().toLowerCase()]);
+}
+
+// 統計指定預約的 booking_status_logs 筆數，供狀態轉換驗證使用。
+export async function countBookingStatusLogs(bookingId: string): Promise<number> {
+  const count = await queryScalar(
+    `SELECT COUNT(*)::text FROM booking_status_logs WHERE booking_id = '${bookingId.replace(/'/g, "''")}'`,
+  );
+
+  return Number(count);
+}
+
 // 查詢 audit_logs 是否已有指定 action 紀錄。
 export async function hasAuditLog(action: string): Promise<boolean> {
   const count = await queryScalar(

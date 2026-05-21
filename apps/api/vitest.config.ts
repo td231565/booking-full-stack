@@ -27,6 +27,8 @@ export default defineConfig({
           setupFiles: ['./vitest.setup.ts'],
           include: ['test/**/*.e2e.spec.ts'],
           globalSetup: ['./test/setup/testcontainer.setup.ts'],
+          // e2e 共用 testcontainer，避免多檔並行關閉連線導致 ECONNRESET。
+          fileParallelism: false,
           testTimeout: 60_000,
           hookTimeout: 120_000,
         },
