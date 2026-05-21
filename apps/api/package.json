@@ -8,7 +8,11 @@
     "build": "nest build",
     "typecheck": "tsc --noEmit",
     "migration:run": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:run",
-    "migration:revert": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:revert"
+    "migration:revert": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:revert",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:all": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@nestjs/common": "latest",
@@ -26,10 +30,20 @@
     "typeorm": "latest"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.4.0",
     "@nestjs/cli": "latest",
+    "@nestjs/testing": "^11.1.21",
+    "@swc/core": "^1.15.33",
+    "@testcontainers/postgresql": "^12.0.0",
     "@types/express": "latest",
     "@types/node": "latest",
+    "@types/supertest": "^7.2.0",
+    "@vitest/coverage-v8": "^4.1.7",
+    "supertest": "^7.2.2",
+    "testcontainers": "^12.0.0",
     "ts-node": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "unplugin-swc": "^1.5.9",
+    "vitest": "^4.1.7"
   }
 }
