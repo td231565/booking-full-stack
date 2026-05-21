@@ -3,6 +3,19 @@ import { server } from '../../../test/msw/server';
 import { apiFetch, ApiClientError } from './client';
 
 describe('apiFetch', () => {
+  // 2xx 回應應直接回傳解析後的 body，不拋任何錯誤。
+  it('2xx 回應時正確解析並回傳 body', async () => {
+    server.use(
+      http.get('http://127.0.0.1:3001/api/auth/me', () => {
+        return HttpResponse.json({ data: { id: 'user-1', email: 'user@example.com' } });
+      }),
+    );
+
+    const result = await apiFetch('/api/auth/me');
+
+    expect(result).toEqual({ data: { id: 'user-1', email: 'user@example.com' } });
+  });
+
   // 4xx 回應應轉成 ApiClientError，讓 UI 可依穩定 error.code 顯示訊息。
   it('API 回 4xx 時拋 ApiClientError 且含正確 code', async () => {
     server.use(
@@ -28,6 +41,39 @@ describe('apiFetch', () => {
       name: 'ApiClientError',
       code: 'INVALID_CREDENTIALS',
       status: 401,
+    });
+  });
+
+  // 5xx 也屬於 !response.ok，同樣應轉成 ApiClientError。
+  it('API 回 5xx 時拋 ApiClientError', async () => {
+    server.use(
+      http.get('http://127.0.0.1:3001/api/auth/me', () => {
+        return HttpResponse.json(
+          { error: { code: 'INTERNAL_SERVER_ERROR', message: '伺服器錯誤' } },
+          { status: 500 },
+        );
+      }),
+    );
+
+    await expect(apiFetch('/api/auth/me')).rejects.toMatchObject({
+      name: 'ApiClientError',
+      status: 500,
+    });
+  });
+
+  // 錯誤 body 為合法 JSON 但不符合 error shape 時，應 fallback 為 INTERNAL_ERROR。
+  it('錯誤 body 不符合 error shape 時 code fallback 為 INTERNAL_ERROR', async () => {
+    server.use(
+      http.get('http://127.0.0.1:3001/api/auth/me', () => {
+        // 合法 JSON 但沒有 error.code / error.message 結構。
+        return HttpResponse.json({ message: 'unexpected error format' }, { status: 503 });
+      }),
+    );
+
+    await expect(apiFetch('/api/auth/me')).rejects.toMatchObject({
+      name: 'ApiClientError',
+      code: 'INTERNAL_ERROR',
+      status: 503,
     });
   });
 
