@@ -13,6 +13,15 @@
     "db:migrate": "npm run migration:run -w apps/api",
     "db:migrate:revert": "npm run migration:revert -w apps/api",
     "verify:phase5": "node scripts/verify-phase5.mjs",
-    "verify:phase6": "node scripts/verify-phase6.mjs"
+    "verify:phase6": "node scripts/verify-phase6.mjs",
+    "test:api": "npm run test -w apps/api",
+    "test:web": "npm run test -w apps/web",
+    "test:e2e:install": "PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium",
+    "test:e2e": "PLAYWRIGHT_BROWSERS_PATH=0 playwright test",
+    "test:e2e:ui": "PLAYWRIGHT_BROWSERS_PATH=0 playwright test --ui",
+    "test": "npm run test:api && npm run test:web"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   }
 }
