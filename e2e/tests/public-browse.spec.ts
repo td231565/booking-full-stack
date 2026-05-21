@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { ensurePublicAvailabilitySlot, findHiddenServiceIdFromDb, findPublicServiceIdByName } from '../helpers/api';
+import {
+  createAdminService,
+  ensurePublicAvailabilitySlot,
+  findHiddenServiceIdFromDb,
+  findInactiveServiceIdFromDb,
+  findPublicServiceIdByName,
+  promoteUserToAdmin,
+  registerAndLogin,
+} from '../helpers/api';
 import { SEED_SERVICE_NAMES } from '../helpers/constants';
 
 test.describe('公開服務瀏覽', () => {
@@ -75,5 +83,35 @@ test.describe('公開服務瀏覽', () => {
     await page.goto('/services/00000000-0000-4000-8000-000000000001');
 
     await expect(page.getByText(/404|找不到|not found/i)).toBeVisible();
+  });
+
+  // Edge case：直接以 URL 進入 inactive 服務詳情，應可查看但不可預約（非 404）。
+  test('直接開啟 inactive 服務詳情顯示不可預約', async ({ page }) => {
+    const inactiveServiceId = findInactiveServiceIdFromDb();
+
+    await page.goto(`/services/${inactiveServiceId}`);
+
+    await expect(page.getByRole('heading', { name: SEED_SERVICE_NAMES.inactive })).toBeVisible();
+    await expect(page.getByText('此服務目前暫停預約，仍可查看服務內容。')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '目前不可預約' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '預約' })).toHaveCount(0);
+  });
+
+  // Edge case：active 服務目前無任何可用時段時顯示 empty state。
+  test('active 服務無可用時段時顯示 empty state', async ({ page, request }) => {
+    const runId = Date.now();
+    const adminEmail = `e2e-empty-admin-${runId}@example.com`;
+    const adminSession = await registerAndLogin(request, adminEmail, 'Empty Admin');
+    promoteUserToAdmin(adminEmail);
+
+    const serviceName = `E2E 無時段服務 ${runId}`;
+    const serviceId = await createAdminService(request, adminSession.token, serviceName);
+
+    await page.goto(`/services/${serviceId}`);
+
+    await expect(page.getByRole('heading', { name: serviceName })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '目前沒有可預約時段' })).toBeVisible();
+    await expect(page.getByText('請稍後再回來查看。')).toBeVisible();
+    await expect(page.getByRole('button', { name: '預約' })).toHaveCount(0);
   });
 });

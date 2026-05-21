@@ -56,6 +56,19 @@ export function findHiddenServiceIdFromDb(): string {
   return serviceId;
 }
 
+// 從 DB 取得 inactive 服務 id，供直接 URL 進入詳情頁測試使用。
+export function findInactiveServiceIdFromDb(): string {
+  const serviceId = queryScalar(
+    `SELECT id::text FROM services WHERE name = '${SEED_SERVICE_NAMES.inactive.replace(/'/g, "''")}' LIMIT 1`,
+  );
+
+  if (!serviceId) {
+    throw new Error(`seed inactive service not found: ${SEED_SERVICE_NAMES.inactive}`);
+  }
+
+  return serviceId;
+}
+
 // 從 login 回應解析 booking_session cookie，供瀏覽器 context 帶入跨域 API 請求。
 export function parseSessionToken(response: APIResponse): string | null {
   const cookies = response
@@ -195,6 +208,31 @@ export async function createAdminAvailabilitySlot(
   const start = new Date(Date.now() + hoursFromNow * 60 * 60 * 1000);
   const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
 
+  return createAdminAvailabilitySlotAt(request, adminToken, serviceId, start, end);
+}
+
+// 以分鐘偏移建立時段，供 BOOKING_TOO_SOON 等時間邊界 E2E 使用。
+export async function createAdminAvailabilitySlotMinutesFromNow(
+  request: APIRequestContext,
+  adminToken: string,
+  serviceId: string,
+  minutesFromNow: number,
+  durationMinutes: number,
+): Promise<string> {
+  const start = new Date(Date.now() + minutesFromNow * 60 * 1000);
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+
+  return createAdminAvailabilitySlotAt(request, adminToken, serviceId, start, end);
+}
+
+// 以明確起迄時間建立時段，集中處理 Admin API 錯誤格式。
+async function createAdminAvailabilitySlotAt(
+  request: APIRequestContext,
+  adminToken: string,
+  serviceId: string,
+  start: Date,
+  end: Date,
+): Promise<string> {
   const response = await request.post(`${API_BASE_URL}/api/admin/availability-slots`, {
     headers: {
       Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
@@ -213,6 +251,147 @@ export async function createAdminAvailabilitySlot(
 
   const body = (await response.json()) as { data: { id: string } };
   return body.data.id;
+}
+
+// 更新後台服務狀態或名稱，供公開列表與後台顯示驗證使用。
+export async function updateAdminService(
+  request: APIRequestContext,
+  adminToken: string,
+  serviceId: string,
+  payload: { name?: string; status?: 'active' | 'inactive' | 'hidden' },
+): Promise<void> {
+  const response = await request.patch(`${API_BASE_URL}/api/admin/services/${serviceId}`, {
+    headers: {
+      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+    },
+    data: payload,
+  });
+
+  if (response.status() !== 200) {
+    throw new Error(`update service failed: ${response.status()} ${await response.text()}`);
+  }
+}
+
+// 批次產生時段，回傳 created / skipped 供邊界測試斷言。
+export async function bulkGenerateAdminAvailabilitySlots(
+  request: APIRequestContext,
+  adminToken: string,
+  payload: {
+    serviceId: string;
+    timezone: 'Asia/Taipei';
+    dateFrom: string;
+    dateTo: string;
+    weekdays: number[];
+    timeRanges: Array<{ startTime: string; endTime: string }>;
+  },
+): Promise<{ created: number; skipped: number }> {
+  const response = await request.post(`${API_BASE_URL}/api/admin/availability-slots/bulk-generate`, {
+    headers: {
+      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+    },
+    data: payload,
+  });
+
+  if (response.status() !== 200) {
+    throw new Error(`bulk generate failed: ${response.status()} ${await response.text()}`);
+  }
+
+  const body = (await response.json()) as { data: { created: number; skipped: number } };
+  return body.data;
+}
+
+// Admin 替會員建立預約，回傳 booking id。
+export async function createAdminBooking(
+  request: APIRequestContext,
+  adminToken: string,
+  userId: string,
+  availabilitySlotId: string,
+  note?: string,
+): Promise<string> {
+  const response = await request.post(`${API_BASE_URL}/api/admin/bookings`, {
+    headers: {
+      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+    },
+    data: { userId, availabilitySlotId, note },
+  });
+
+  if (response.status() !== 200 && response.status() !== 201) {
+    throw new Error(`create admin booking failed: ${response.status()} ${await response.text()}`);
+  }
+
+  const body = (await response.json()) as { data: { id: string } };
+  return body.data.id;
+}
+
+// Admin 取消預約，供後台列表狀態驗證使用。
+export async function cancelAdminBooking(
+  request: APIRequestContext,
+  adminToken: string,
+  bookingId: string,
+  reason?: string,
+): Promise<APIResponse> {
+  return request.post(`${API_BASE_URL}/api/admin/bookings/${bookingId}/cancel`, {
+    headers: {
+      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+    },
+    data: { reason },
+  });
+}
+
+// 嘗試替 inactive / hidden 服務建立時段，回傳原始 response 供錯誤碼斷言。
+export async function tryCreateAdminAvailabilitySlot(
+  request: APIRequestContext,
+  adminToken: string,
+  serviceId: string,
+  hoursFromNow: number,
+  durationMinutes: number,
+): Promise<APIResponse> {
+  const start = new Date(Date.now() + hoursFromNow * 60 * 60 * 1000);
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+
+  return request.post(`${API_BASE_URL}/api/admin/availability-slots`, {
+    headers: {
+      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+    },
+    data: {
+      serviceId,
+      startAt: start.toISOString(),
+      endAt: end.toISOString(),
+      status: 'available',
+    },
+  });
+}
+
+// 在 DB 插入已結束的 confirmed 預約，供 completed 狀態展示測試使用。
+export function insertCompletedBookingInDb(params: {
+  userId: string;
+  serviceId: string;
+  slotId: string;
+  note?: string;
+}): string {
+  const safeNote = (params.note ?? 'e2e completed').replace(/'/g, "''");
+  const bookingId = queryScalar(
+    `WITH inserted AS (INSERT INTO bookings (user_id, service_id, availability_slot_id, status, note) VALUES ('${params.userId}', '${params.serviceId}', '${params.slotId}', 'confirmed', '${safeNote}') RETURNING id::text) SELECT id FROM inserted`,
+  );
+
+  if (!bookingId) {
+    throw new Error('insert completed booking failed');
+  }
+
+  return bookingId;
+}
+
+// 建立已過去的 availability slot，讓查詢時對外顯示 completed。
+export function insertPastAvailabilitySlotInDb(serviceId: string): string {
+  const slotId = queryScalar(
+    `WITH inserted AS (INSERT INTO availability_slots (service_id, start_at, end_at, status) VALUES ('${serviceId}', NOW() - INTERVAL '3 hours', NOW() - INTERVAL '2 hours', 'available') RETURNING id::text) SELECT id FROM inserted`,
+  );
+
+  if (!slotId) {
+    throw new Error('insert past slot failed');
+  }
+
+  return slotId;
 }
 
 // 查詢公開服務列表並依名稱取得 service id。
