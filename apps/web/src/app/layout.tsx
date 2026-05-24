@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Sans, Noto_Sans_TC } from 'next/font/google';
-import Link from 'next/link';
-import { NavLink } from '@/components/ui/nav-link';
+import { SiteHeader } from '@/components/site-header';
 import './globals.css';
 
 const ibmPlexSans = IBM_Plex_Sans({
@@ -31,16 +30,7 @@ export default function RootLayout({
     <html className={`${ibmPlexSans.variable} ${notoSansTC.variable}`} lang="zh-Hant-TW">
       <body className="min-h-screen">
         <div className="flex min-h-screen flex-col">
-          <header className="sticky top-0 z-10 border-b border-border bg-elevated/95 backdrop-blur-sm">
-            <nav aria-label="主要導覽" className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-5 py-3 sm:px-6">
-              <Link className="mr-auto text-base font-bold tracking-tight text-ink" href="/">
-                預約排程
-              </Link>
-              <NavLink href="/services">服務</NavLink>
-              <NavLink href="/my/bookings">我的預約</NavLink>
-              <NavLink href="/admin">後台</NavLink>
-            </nav>
-          </header>
+          <SiteHeader />
           <div className="flex-1">{children}</div>
         </div>
       </body>

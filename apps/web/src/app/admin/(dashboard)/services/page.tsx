@@ -13,7 +13,7 @@ export default async function AdminServicesPage() {
     const response = await getAdminServices({ cookieHeader: (await cookies()).toString() });
 
     return (
-      <Page>
+      <Page className="max-w-5xl">
         <PageHeader description="後台可管理公開、停用與隱藏服務。" title="服務管理" />
 
         {response.data.length > 0 ? (
@@ -31,7 +31,7 @@ export default async function AdminServicesPage() {
     );
   } catch (error) {
     return (
-      <Page>
+      <Page className="max-w-5xl">
         <ErrorState title="服務管理資料無法載入" description={getAdminErrorMessage(error)} />
       </Page>
     );

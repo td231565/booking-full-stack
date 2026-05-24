@@ -13,7 +13,7 @@ export default async function AdminAvailabilityPage() {
     const response = await getAdminAvailabilitySlots({ cookieHeader: (await cookies()).toString() });
 
     return (
-      <Page>
+      <Page className="max-w-5xl">
         <PageHeader description="可透過 Admin API 建立、更新與批次產生時段。" title="時段管理" />
 
         {response.data.length > 0 ? (
@@ -31,7 +31,7 @@ export default async function AdminAvailabilityPage() {
     );
   } catch (error) {
     return (
-      <Page>
+      <Page className="max-w-5xl">
         <ErrorState title="時段資料無法載入" description={getAdminErrorMessage(error)} />
       </Page>
     );

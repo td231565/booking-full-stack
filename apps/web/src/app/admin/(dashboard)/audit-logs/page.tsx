@@ -12,7 +12,7 @@ export default async function AdminAuditLogsPage() {
     const response = await getAdminAuditLogs({ cookieHeader: (await cookies()).toString() });
 
     return (
-      <Page>
+      <Page className="max-w-5xl">
         <PageHeader description="記錄後台服務、時段與預約的重要異動。" title="稽核紀錄" />
 
         {response.data.length > 0 ? (
@@ -30,7 +30,7 @@ export default async function AdminAuditLogsPage() {
     );
   } catch (error) {
     return (
-      <Page>
+      <Page className="max-w-5xl">
         <ErrorState title="稽核紀錄無法載入" description={getAdminErrorMessage(error)} />
       </Page>
     );

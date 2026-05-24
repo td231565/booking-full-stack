@@ -13,7 +13,7 @@ export default async function AdminBookingsPage() {
     const response = await getAdminBookings({ cookieHeader: (await cookies()).toString() });
 
     return (
-      <Page>
+      <Page className="max-w-5xl">
         <PageHeader description="可透過 Admin API 替會員建立、更新備註與取消預約。" title="預約管理" />
 
         {response.data.length > 0 ? (
@@ -31,7 +31,7 @@ export default async function AdminBookingsPage() {
     );
   } catch (error) {
     return (
-      <Page>
+      <Page className="max-w-5xl">
         <ErrorState title="預約資料無法載入" description={getAdminErrorMessage(error)} />
       </Page>
     );
