@@ -26,6 +26,7 @@
 - 會員頁與後台頁不可使用共享快取
 - 會員與後台資料需依 session 判斷，建議使用 `cache: 'no-store'`
 - 互動表單、登入、預約、取消預約使用 Client Component
+- 後台與公開站版面分離：`/admin/*` 不顯示公開站 header，使用獨立 sidebar + status bar
 
 資料安全原則：
 
@@ -36,8 +37,11 @@
 
 ## 3. 建議路由結構
 
+### 3.1 公開站與會員頁
+
 ```text
 app/
+  layout.tsx              # 根 layout（含 SiteHeader，/admin 不顯示）
   page.tsx
   services/
     page.tsx
@@ -52,34 +56,54 @@ app/
       page.tsx
       [bookingId]/
         page.tsx
-  admin/
-    page.tsx
+```
+
+### 3.2 後台（獨立路由，無公開站 header）
+
+後台使用 Route Group 分離登入頁與 dashboard，URL 不含 group 名稱：
+
+```text
+app/admin/
+  (auth)/
+    login/
+      page.tsx              # /admin/login
+      admin-login-form.tsx  # Client Component
+  (dashboard)/
+    layout.tsx              # sidebar + status bar + auth guard
+    page.tsx                # /admin → redirect /admin/bookings
+    bookings/
+      page.tsx              # /admin/bookings（預設首頁）
     services/
       page.tsx
     availability/
-      page.tsx
-    bookings/
       page.tsx
     audit-logs/
       page.tsx
 ```
 
-建議共用模組：
+後台入口：**無公開站導覽連結**，須直接前往 `/admin/login`。
+
+### 3.3 建議共用模組
 
 ```text
 src/
-  features/
-    auth/
-    services/
-    bookings/
+  app/
     admin/
-  lib/
-    api/
-    date/
-    errors/
+      (auth)/login/
+      (dashboard)/
   components/
     ui/
+    admin/                  # sidebar、status bar、logout、nav 設定
+    site-header.tsx         # 公開站 header（pathname 以 /admin 開頭時不渲染）
+  lib/
+    api/
+    auth/                   # getCurrentUser、getCurrentUserFromCookieHeader
+    admin/                  # admin-api.ts
+    services/
+    bookings/
 ```
+
+> 原規劃的 `features/` 目錄尚未採用，目前以 `app/` + `lib/` + `components/` 組織。
 
 ## 4. 共用前端狀態
 
@@ -115,8 +139,8 @@ currentUser = User | null
 
 | error.code | 前端處理 |
 | --- | --- |
-| UNAUTHENTICATED | 導向登入頁 |
-| FORBIDDEN | 顯示無權限 |
+| UNAUTHENTICATED | 會員頁導向 `/login`；後台頁由 layout redirect 至 `/admin/login` |
+| FORBIDDEN | 顯示無權限；後台列表頁可能顯示「你沒有後台管理權限。」（API 層） |
 | RESOURCE_NOT_FOUND | 顯示找不到資料 |
 | BOOKING_SLOT_UNAVAILABLE | 顯示時段已不可預約並刷新時段 |
 | BOOKING_TOO_SOON | 顯示只能預約 1 小時後的時段 |
@@ -338,31 +362,104 @@ POST /api/me/bookings/:bookingId/cancel
 
 ## 8. Admin Pages
 
-後台共通規則：
+後台與公開站分離，共通規則如下。
 
-- 進入後台前呼叫 `GET /api/auth/me`
-- 未登入導向 `/login`
-- 已登入但不是 admin，顯示無權限
-- 真正權限仍由後端 Admin API 驗證
+### 8.0 後台共通規則
 
-### 8.1 後台首頁 `/admin`
+**版面**
+
+- 公開站 `SiteHeader` 在 `pathname.startsWith('/admin')` 時不渲染
+- `(dashboard)/layout.tsx` 提供全螢幕後台 shell：
+  - 左側 sidebar（240px）：系統名稱、路由選單、登出
+  - 頂部 status bar：目前頁面標題、登入人員 `displayName` 與角色標籤
+  - 主內容區：各管理頁（使用 `Page` / `PageHeader` / `Panel`）
+
+**認證與授權**
+
+```text
+1. 後台登入頁 /admin/login：不經 dashboard layout
+2. 已登入 admin 訪問 /admin/login → redirect /admin/bookings
+3. dashboard 各頁 layout 以 cookies() 轉送 Cookie，呼叫 GET /api/auth/me
+4. 未登入或 role !== admin → redirect /admin/login
+5. 真正寫入權限仍由後端 Admin API 驗證 role = admin
+```
+
+**目前 UI 實作範圍（MVP）**
+
+- 各管理頁已串接 Admin API **唯讀列表**（`GET`）
+- 建立/更新/取消等寫入操作**尚未提供表單 UI**，須直接呼叫 Admin API
+- 各頁設 `export const dynamic = 'force-dynamic'`
+
+### 8.1 後台登入 `/admin/login`
 
 用途：
 
-- 顯示後台入口
-- 顯示今日預約摘要
-- 導向服務、時段、預約、稽核紀錄
+- 後台專用登入入口（與會員 `/login` 分離）
+- 驗證帳密後確認 `role = admin`
 
-MVP 可先只做導覽，不一定需要統計 API。
+串接 API：
 
-### 8.2 服務管理 `/admin/services`
+```text
+POST /api/auth/login
+GET /api/auth/me
+POST /api/auth/logout   # 非 admin 登入成功後立即呼叫，清除 session
+```
+
+流程：
+
+```text
+1. 使用者輸入 email / password
+2. 前端送出 POST /api/auth/login
+3. 成功後呼叫 GET /api/auth/me
+4. 若 role !== admin：
+   - 呼叫 POST /api/auth/logout
+   - 顯示「此帳號無後台管理權限。」
+   - 停留登入頁
+5. 若 role === admin：
+   - 導向 /admin/bookings
+   - router.refresh()
+```
+
+錯誤處理：與會員登入相同（`INVALID_CREDENTIALS`、`USER_DISABLED`、`RATE_LIMITED`）。
+
+實作：`AdminLoginForm`（Client Component）、`AdminLoginPage`（Server Component，已登入 admin 則 redirect）。
+
+### 8.2 後台根路由 `/admin`
 
 用途：
 
-- 建立服務
-- 編輯服務
-- 設定服務狀態
-- 設定主圖 URL
+- 登入後進入後台的捷徑 URL
+- **不顯示**舊版卡片式導覽首頁
+
+行為：
+
+```text
+Server Component 執行 redirect('/admin/bookings')
+```
+
+預設首頁為 **預約管理**。
+
+### 8.3 後台登出
+
+位置：dashboard sidebar 底部 **登出** 按鈕（`AdminLogoutButton`）。
+
+流程：
+
+```text
+1. 使用者點擊登出
+2. 呼叫 POST /api/auth/logout
+3. 導向 /admin/login
+4. router.refresh()
+```
+
+### 8.4 服務管理 `/admin/services`
+
+用途：
+
+- 查看所有服務（含 `hidden`）
+- 規劃中：建立/編輯服務、設定狀態、設定主圖 URL
+
+**目前已實作**：唯讀列表（Server Component + `getAdminServices`）。
 
 串接 API：
 
@@ -373,7 +470,7 @@ POST /api/admin/services
 PATCH /api/admin/services/:serviceId
 ```
 
-表單欄位：
+表單欄位（寫入 UI 規劃中）：
 
 - name
 - description
@@ -388,13 +485,14 @@ PATCH /api/admin/services/:serviceId
 - `inactive`：前台顯示，不可預約
 - `hidden`：前台不顯示
 
-### 8.3 時段管理 `/admin/availability`
+### 8.5 時段管理 `/admin/availability`
 
 用途：
 
-- 單筆建立可預約時段
-- 編輯時段狀態
-- 批次產生可預約時段
+- 查看後台時段列表
+- 規劃中：單筆建立、編輯狀態、批次產生
+
+**目前已實作**：唯讀列表（`getAdminAvailabilitySlots`）。
 
 單筆時段 API：
 
@@ -411,7 +509,7 @@ PATCH /api/admin/availability-slots/:slotId
 POST /api/admin/availability-slots/bulk-generate
 ```
 
-批次產生表單欄位：
+批次產生表單欄位（寫入 UI 規劃中）：
 
 - serviceId
 - timezone
@@ -440,15 +538,14 @@ UI 注意：
 - 遇到 `skipped` 時顯示有部分時段已存在
 - 批次產生送出期間 disable submit button
 
-### 8.4 預約管理 `/admin/bookings`
+### 8.6 預約管理 `/admin/bookings`
 
 用途：
 
-- 查看所有預約
-- 依條件篩選
-- 替會員建立預約
-- 編輯備註
-- 取消預約
+- 查看所有會員預約（**後台預設首頁**）
+- 規劃中：篩選、代客建立、編輯備註、取消
+
+**目前已實作**：唯讀列表（`getAdminBookings`）。
 
 串接 API：
 
@@ -459,7 +556,7 @@ PATCH /api/admin/bookings/:bookingId
 POST /api/admin/bookings/:bookingId/cancel
 ```
 
-篩選條件：
+篩選條件（寫入 UI 規劃中）：
 
 - status
 - serviceId
@@ -476,12 +573,14 @@ POST /api/admin/bookings/:bookingId/cancel
 - `completed` 由後端依 `slot.endAt` 與伺服器時間計算，MVP 不提供手動完成操作
 - 已取消或已完成的預約再次取消時，依 API 錯誤碼顯示不可取消
 
-### 8.5 稽核紀錄 `/admin/audit-logs`
+### 8.7 稽核紀錄 `/admin/audit-logs`
 
 用途：
 
 - 查看後台重要操作
 - 追蹤服務與預約異動
+
+**目前已實作**：唯讀列表（`getAdminAuditLogs`）。
 
 串接 API：
 
@@ -489,7 +588,7 @@ POST /api/admin/bookings/:bookingId/cancel
 GET /api/admin/audit-logs?page=1&pageSize=20
 ```
 
-篩選條件：
+篩選條件（寫入 UI 規劃中）：
 
 - actorUserId
 - targetType
@@ -531,11 +630,21 @@ GET /api/admin/audit-logs?page=1&pageSize=20
 6. 成功後更新畫面
 ```
 
-### 9.3 Admin 批次產生時段流程
+### 9.3 Admin 進入後台流程
 
 ```text
-1. Admin 進入 /admin/availability
-2. 選擇服務
+1. 使用者直接開啟 /admin/login（公開站無後台連結）
+2. 輸入 admin 帳密，POST /api/auth/login
+3. GET /api/auth/me 確認 role = admin
+4. 導向 /admin/bookings（預約管理）
+5. 透過 sidebar 切換其他管理頁
+```
+
+### 9.4 Admin 批次產生時段流程
+
+```text
+1. Admin 已登入，經 sidebar 進入 /admin/availability
+2. 選擇服務（目前須透過 Admin API 或外部工具操作表單）
 3. 設定日期區間、星期與時間區間
 4. 送出 POST /api/admin/availability-slots/bulk-generate
 5. 顯示 created / skipped 統計
@@ -553,13 +662,16 @@ GET /api/admin/audit-logs?page=1&pageSize=20
 | `/register` | Client Component | 表單互動 |
 | `/my/bookings` | Dynamic / no-store | 會員私人資料 |
 | `/my/bookings/:bookingId` | Dynamic / no-store | 會員私人資料 |
-| `/admin/*` | Dynamic / no-store | 後台私人資料 |
+| `/admin/login` | Client Component（表單）+ Server redirect | 後台登入 |
+| `/admin` | Server redirect | 導向 `/admin/bookings` |
+| `/admin/*`（dashboard） | Dynamic / no-store + dashboard layout | 後台私人資料；layout 內 auth guard |
 
 注意：
 
 - 公開頁不可混入會員私人資料再做共享快取
 - 會員與後台頁不應使用靜態產生
 - 可預約時段需在預約成功後刷新
+- 後台 Server Component 須透過 `cookies().toString()` 轉送 Cookie 呼叫 API（見 `getCurrentUserFromCookieHeader`、`admin-api.ts`）
 
 ## 11. 表單與互動規則
 
@@ -593,8 +705,10 @@ GET /api/admin/audit-logs?page=1&pageSize=20
 措施：
 
 - route guard 只做 UX
-- API 回 401 時導向登入
-- API 回 403 時顯示無權限
+- 會員頁 API 回 401 時導向 `/login`
+- 後台 dashboard layout：未登入或非 admin 時 `redirect('/admin/login')`（非在頁內顯示錯誤）
+- 後台登入頁：非 admin 登入成功後立即 logout 並顯示無權限訊息
+- API 回 403 時顯示無權限（列表頁 catch 區塊）
 - 不從前端傳入 `userId` 建立會員預約
 
 ### 12.4 SSR 資料外洩
@@ -613,3 +727,4 @@ GET /api/admin/audit-logs?page=1&pageSize=20
 - Email / SMS 通知設定
 - 多店家後台
 - 規則式排班管理
+- 後台管理頁寫入操作 UI（建立服務、批次產生時段、代客預約等；目前僅唯讀列表）

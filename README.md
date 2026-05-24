@@ -21,7 +21,7 @@
 | --- | --- |
 | **訪客** | 瀏覽公開服務列表與詳情、查看可預約時段（不需登入） |
 | **一般會員** | 註冊、登入、建立預約、查看/取消自己的預約 |
-| **管理員** | 管理服務、時段、所有預約、查詢稽核紀錄（規劃中，見下方實作進度） |
+| **管理員** | 透過獨立後台登入管理服務、時段、全站預約與稽核紀錄（API 已完成；前端管理頁為唯讀列表，寫入操作須透過 Admin API） |
 
 ### 前台（訪客 / 會員）
 
@@ -44,7 +44,7 @@
 - 全站預約管理（代客建立、更新備註、取消；不受會員 1 小時/4 小時限制）
 - 稽核紀錄查詢
 
-**目前實作進度**：公開瀏覽與會員預約流程（Phase 3–4）已打通；後台 API 與管理頁面多為骨架（`/admin/*` 頁面與 `admin` module 健康檢查端點），完整後台功能尚待 Phase 5 完成。
+**目前實作進度**：公開瀏覽與會員預約流程（Phase 3–4）已打通；後台 Admin API（Phase 5）已完成。前端後台為獨立路由體系（`/admin/login` 登入、sidebar 導覽、status bar），各管理頁已串接 API 顯示唯讀列表；建立/更新/取消等寫入操作尚未提供 UI，須直接呼叫 Admin API。
 
 ### 開發用種子資料
 
@@ -73,9 +73,9 @@
 │   │   │       ├── auth/             # 註冊、登入、登出、me
 │   │   │       ├── service-catalog/  # 公開服務 API
 │   │   │       ├── booking/          # 會員預約 API
-│   │   │       ├── admin/            # 後台 API（進行中）
-│   │   │       ├── availability/     # 時段模組（進行中）
-│   │   │       └── audit-log/        # 稽核模組（進行中）
+│   │   │       ├── admin/            # 後台 API
+│   │   │       ├── availability/     # 時段模組
+│   │   │       └── audit-log/        # 稽核模組
 │   │   └── .env.example
 │   └── web/                          # Next.js 前端
 │       └── src/
@@ -85,11 +85,21 @@
 │           │   ├── login/            # 登入
 │           │   ├── register/         # 註冊
 │           │   ├── my/bookings/      # 我的預約
-│           │   └── admin/            # 後台頁面（骨架）
-│           ├── components/ui/        # loading / empty / error 狀態
+│           │   └── admin/            # 後台（獨立路由）
+│           │       ├── (auth)/login/ # 後台登入頁
+│           │       └── (dashboard)/  # sidebar + status bar + 管理頁
+│           │           ├── bookings/   # 預約管理（預設首頁）
+│           │           ├── services/
+│           │           ├── availability/
+│           │           └── audit-logs/
+│           ├── components/
+│           │   ├── ui/               # loading / empty / error 狀態
+│           │   ├── admin/            # 後台 sidebar、status bar、登出
+│           │   └── site-header.tsx   # 公開站 header（/admin 不顯示）
 │           └── lib/
 │               ├── api/client.ts     # API client（credentials + 錯誤碼）
 │               ├── auth/             # 目前使用者
+│               ├── admin/            # 後台 API 封裝
 │               ├── services/         # 公開服務資料取得
 │               └── bookings/         # 會員預約 API 封裝
 ├── docker-compose.yml                # PostgreSQL 16
@@ -183,6 +193,7 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:3001
 | --- | --- |
 | 後端健康檢查 | http://127.0.0.1:3001/api/health |
 | 前端首頁 | http://127.0.0.1:3000 |
+| 後台登入頁 | http://127.0.0.1:3000/admin/login |
 
 ### 7. 關閉所有服務
 
@@ -235,7 +246,7 @@ npm run typecheck      # TypeScript 檢查
 
 ## 前台操作方式
 
-導覽列位於全站頂部：**服務**、**我的預約**、**後台**。
+導覽列位於全站頂部：**服務**、**我的預約**（後台無公開入口，須直接前往 `/admin/login`）。
 
 ### 訪客：瀏覽服務
 
@@ -269,31 +280,39 @@ npm run typecheck      # TypeScript 檢查
 
 ## 後台操作方式
 
-### 目前狀態
+後台與前台分離：公開站導覽列不含後台連結，`/admin/*` 使用獨立版面（左側 sidebar 選單、頂部 status bar 顯示登入人員）。
 
-- 前端路由已建立：`/admin`、`/admin/services`、`/admin/availability`、`/admin/bookings`、`/admin/audit-logs`
-- 各頁面目前為 **骨架畫面**，尚未串接完整 Admin API
-- 後端 `GET /api/admin/module-status` 等僅供模組健康檢查
+### 路由一覽
 
-### 規劃中的後台流程（Phase 5 完成後）
+| 路徑 | 說明 |
+| --- | --- |
+| `/admin/login` | 後台專用登入頁（驗證 `role = admin`） |
+| `/admin` | 登入後自動導向 `/admin/bookings` |
+| `/admin/bookings` | 預約管理（預設首頁，唯讀列表） |
+| `/admin/services` | 服務管理（唯讀列表，含 `hidden`） |
+| `/admin/availability` | 時段管理（唯讀列表） |
+| `/admin/audit-logs` | 稽核紀錄（唯讀列表） |
 
-以下依 [frontend_flow.md](./frontend_flow.md) 與 [api_contract.md](./api_contract.md) 說明預期操作方式：
+### 操作步驟
 
-1. **進入後台**：以 `role = admin` 帳號登入後前往 `/admin`
-2. **服務管理** (`/admin/services`)：建立/編輯服務、設定 `active` / `inactive` / `hidden`
-3. **時段管理** (`/admin/availability`)：為 `active` 服務建立或批次產生可預約時段
-4. **預約管理** (`/admin/bookings`)：查詢全站預約、代客建立/更新備註/取消
-5. **稽核紀錄** (`/admin/audit-logs`)：查詢後台重要操作紀錄
+1. **建立管理員帳號**（開發用）：註冊 API 只會建立 `role = user` 的會員，須在資料庫手動升級，例如：
 
-### 建立管理員帳號（開發用）
+   ```sql
+   UPDATE users SET role = 'admin' WHERE email = '你的-email@example.com';
+   ```
 
-註冊 API 只會建立 `role = user` 的會員。開發階段若需測試後台，請在資料庫手動將使用者升級為管理員，例如：
+2. **登入後台**：開啟 http://127.0.0.1:3000/admin/login ，以 admin 帳號登入
+   - 非 admin 帳號會顯示「此帳號無後台管理權限」
+   - 登入成功後導向 **預約管理**（`/admin/bookings`）
+3. **瀏覽管理資料**：左側 sidebar 切換各管理頁，頂部 status bar 顯示目前頁面與登入人員
+4. **寫入操作**：建立服務、批次產生時段、代客建立/取消預約等，目前須直接呼叫 Admin API（完整定義見 [api_contract.md](./api_contract.md)）
+5. **登出**：sidebar 底部 **登出** 按鈕，清除 session 後返回 `/admin/login`
 
-```sql
-UPDATE users SET role = 'admin' WHERE email = '你的-email@example.com';
-```
+### 權限與存取控制
 
-完成 Phase 5 後，建議改以 migration seed 或專用管理腳本建立初始 admin，避免手動改 DB。
+- 未登入或非 admin 訪問 `/admin/*`（登入頁除外）會 redirect 至 `/admin/login`
+- 前端 route guard 僅改善 UX；真正權限由後端 Admin API 的 `role = admin` 檢查
+- 後台頁使用 `dynamic = 'force-dynamic'`，避免 SSR 共享快取
 
 ## 主要 API 一覽（已實作）
 
@@ -319,7 +338,8 @@ UPDATE users SET role = 'admin' WHERE email = '你的-email@example.com';
 ## 架構與安全重點
 
 - **時間**：DB 存 UTC；API 回傳 ISO 8601；前端依使用者時區顯示
-- **授權**：後端不信任前端傳入的 `userId` / `role`；會員只能存取自己的預約
+- **授權**：後端不信任前端傳入的 `userId` / `role`；會員只能存取自己的預約；Admin API 僅 `role = admin` 可存取
+- **後台版面**：`/admin/*` 與公開站分離，不使用公開站 header，以 sidebar + status bar 呈現
 - **Session**：Cookie 設定 `HttpOnly`、`Secure`、`SameSite=Lax`；DB 僅存 token hash
 - **快取**：會員頁與後台頁使用 `dynamic = 'force-dynamic'`，避免 SSR 共享私人資料
 - **Rate limit**：依 `api_contract.md` §2.8 分路由限流（`npm run verify:phase6` 可驗證）
@@ -331,6 +351,7 @@ UPDATE users SET role = 'admin' WHERE email = '你的-email@example.com';
 | migration 失敗 | 確認 Postgres 已啟動、`DATABASE_URL` 正確 |
 | 前端無法呼叫 API | 確認 `dev:api` 已啟動；檢查 `NEXT_PUBLIC_API_BASE_URL` |
 | 登入後仍像未登入 | Cookie 設為 `Secure`，請使用 `127.0.0.1` 且確認瀏覽器允許本機 Secure cookie；必要時檢查 CORS 的 `WEB_ORIGIN` 是否與前端網址一致 |
+| 後台登入顯示無權限 | 確認 DB 中該使用者 `role = 'admin'`；一般會員帳號無法進入後台 |
 | 看不到可預約時段 | 種子時段約在「現在 + 2 天」；須為 `active` 服務且距開始 ≥ 1 小時、狀態為 `available`、且無人預約 |
 
 ## 授權
