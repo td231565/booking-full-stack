@@ -3,6 +3,8 @@
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Form, FormError, FormField, TextInput } from '@/components/ui/form';
 import { ApiClientError, ApiSuccessResponse, apiFetch } from '@/lib/api/client';
 import { getApiErrorMessage } from '@/lib/api/error-messages';
 import { CurrentUser } from '@/lib/auth/get-current-user';
@@ -40,14 +42,12 @@ export function RegisterForm() {
   }
 
   return (
-    <form className="form" onSubmit={handleSubmit}>
-      <label className="form-field">
-        Email
-        <input autoComplete="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
-      </label>
-      <label className="form-field">
-        顯示名稱
-        <input
+    <Form onSubmit={handleSubmit}>
+      <FormField label="Email">
+        <TextInput autoComplete="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
+      </FormField>
+      <FormField label="顯示名稱">
+        <TextInput
           autoComplete="name"
           maxLength={100}
           onChange={(event) => setDisplayName(event.target.value)}
@@ -55,10 +55,9 @@ export function RegisterForm() {
           type="text"
           value={displayName}
         />
-      </label>
-      <label className="form-field">
-        密碼
-        <input
+      </FormField>
+      <FormField label="密碼">
+        <TextInput
           autoComplete="new-password"
           minLength={8}
           onChange={(event) => setPassword(event.target.value)}
@@ -66,15 +65,18 @@ export function RegisterForm() {
           type="password"
           value={password}
         />
-      </label>
-      {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
-      <button className="button-link" disabled={isSubmitting} type="submit">
+      </FormField>
+      {errorMessage ? <FormError>{errorMessage}</FormError> : null}
+      <Button disabled={isSubmitting} type="submit">
         {isSubmitting ? '註冊中...' : '註冊'}
-      </button>
-      <p>
-        已有帳號？<Link href="/login">前往登入</Link>
+      </Button>
+      <p className="text-sm text-ink-muted">
+        已有帳號？{' '}
+        <Link className="font-medium text-accent hover:text-accent-hover" href="/login">
+          前往登入
+        </Link>
       </p>
-    </form>
+    </Form>
   );
 }
 

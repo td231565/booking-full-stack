@@ -10,6 +10,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.3.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -18,9 +19,11 @@
     "happy-dom": "^20.9.0",
     "msw": "^2.14.6",
     "next": "latest",
+    "postcss": "^8.4.31",
     "react": "latest",
     "react-dom": "latest",
     "swr": "latest",
+    "tailwindcss": "^4.3.0",
     "vitest": "^4.1.7",
     "zod": "latest"
   },

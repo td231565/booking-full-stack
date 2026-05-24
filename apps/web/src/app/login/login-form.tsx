@@ -3,6 +3,8 @@
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Form, FormError, FormField, TextInput } from '@/components/ui/form';
 import { ApiClientError, ApiSuccessResponse, apiFetch } from '@/lib/api/client';
 import { CurrentUser } from '@/lib/auth/get-current-user';
 
@@ -42,14 +44,12 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   }
 
   return (
-    <form className="form" onSubmit={handleSubmit}>
-      <label className="form-field">
-        Email
-        <input autoComplete="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
-      </label>
-      <label className="form-field">
-        密碼
-        <input
+    <Form onSubmit={handleSubmit}>
+      <FormField label="Email">
+        <TextInput autoComplete="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
+      </FormField>
+      <FormField label="密碼">
+        <TextInput
           autoComplete="current-password"
           minLength={8}
           onChange={(event) => setPassword(event.target.value)}
@@ -57,15 +57,18 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           type="password"
           value={password}
         />
-      </label>
-      {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
-      <button className="button-link" disabled={isSubmitting} type="submit">
+      </FormField>
+      {errorMessage ? <FormError>{errorMessage}</FormError> : null}
+      <Button disabled={isSubmitting} type="submit">
         {isSubmitting ? '登入中...' : '登入'}
-      </button>
-      <p>
-        尚未有帳號？<Link href="/register">前往註冊</Link>
+      </Button>
+      <p className="text-sm text-ink-muted">
+        尚未有帳號？{' '}
+        <Link className="font-medium text-accent hover:text-accent-hover" href="/register">
+          前往註冊
+        </Link>
       </p>
-    </form>
+    </Form>
   );
 }
 

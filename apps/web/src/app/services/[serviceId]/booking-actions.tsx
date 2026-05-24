@@ -2,6 +2,8 @@
 
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { FormError, TextInput } from '@/components/ui/form';
 import { ApiClientError } from '@/lib/api/client';
 import { getApiErrorMessage } from '@/lib/api/error-messages';
 import { createBooking } from '@/lib/bookings/member-bookings';
@@ -48,19 +50,20 @@ export function BookingActions({ serviceId, slot }: BookingActionsProps) {
   }
 
   return (
-    <form className="inline-form" onSubmit={handleSubmit}>
-      <input
+    <form className="flex w-full flex-col gap-2 sm:w-auto sm:items-end" onSubmit={handleSubmit}>
+      <TextInput
         aria-label="預約備註"
+        className="sm:min-w-[12rem]"
         maxLength={1000}
         onChange={(event) => setNote(event.target.value)}
         placeholder="備註（選填）"
         type="text"
         value={note}
       />
-      <button className="button-link" disabled={isSubmitting} type="submit">
+      <Button disabled={isSubmitting} type="submit">
         {isSubmitting ? '建立中...' : '預約'}
-      </button>
-      {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
+      </Button>
+      {errorMessage ? <FormError>{errorMessage}</FormError> : null}
     </form>
   );
 }

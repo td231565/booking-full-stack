@@ -1,4 +1,5 @@
 import { LoginForm } from './login-form';
+import { Page, PageHeader, Panel } from '@/components/ui/page';
 
 type LoginPageProps = {
   searchParams?: Promise<{
@@ -11,13 +12,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const redirectTo = normalizeRedirect((await searchParams)?.redirect);
 
   return (
-    <main className="page">
-      <section className="card">
-        <h1>登入</h1>
-        <p>登入後即可建立預約與查看自己的預約。</p>
+    <Page>
+      <Panel className="max-w-md mx-auto">
+        <PageHeader className="mb-0" description="登入後即可建立預約與查看自己的預約。" title="登入" />
         <LoginForm redirectTo={redirectTo} />
-      </section>
-    </main>
+      </Panel>
+    </Page>
   );
 }
 

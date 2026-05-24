@@ -1,4 +1,8 @@
 import Link from 'next/link';
+import { ServiceStatusBadge } from '@/components/ui/badge';
+import { ButtonLink } from '@/components/ui/button';
+import { Pagination } from '@/components/ui/pagination';
+import { Page, PageHeader, Panel } from '@/components/ui/page';
 import { EmptyState, ErrorState } from '@/components/ui/status-state';
 import { ApiClientError } from '@/lib/api/client';
 import { getPublicServices, PublicService } from '@/lib/services/public-services';
@@ -17,30 +21,29 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
     const response = await getPublicServices(page, 20);
 
     return (
-      <main className="page">
-        <header className="page__header">
-          <h1>服務列表</h1>
-          <p>選擇服務查看內容與可預約時段。</p>
-        </header>
+      <Page>
+        <PageHeader description="選擇服務查看內容與可預約時段。" title="服務列表" />
 
         {response.data.length > 0 ? (
-          <div className="grid">
+          <ul className="flex flex-col gap-4">
             {response.data.map((service) => (
-              <ServiceCard key={service.id} service={service} />
+              <li key={service.id}>
+                <ServiceCard service={service} />
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
           <EmptyState title="目前沒有公開服務" description="請稍後再回來查看。" />
         )}
 
-        <Pagination page={response.meta.page} totalPages={response.meta.totalPages} />
-      </main>
+        <Pagination buildHref={(p) => `/services?page=${p}`} page={response.meta.page} totalPages={response.meta.totalPages} />
+      </Page>
     );
   } catch (error) {
     return (
-      <main className="page">
+      <Page>
         <ErrorState title="服務列表暫時無法載入" description={getErrorMessage(error)} />
-      </main>
+      </Page>
     );
   }
 }
@@ -48,41 +51,19 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
 // 顯示單張公開服務卡片，inactive 服務會清楚標示不可預約。
 function ServiceCard({ service }: { service: PublicService }) {
   return (
-    <article className="card service-card">
-      <div className="service-card__header">
-        <h2>{service.name}</h2>
-        <StatusBadge status={service.status} />
+    <Panel className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="text-xl font-semibold text-ink">{service.name}</h2>
+        <ServiceStatusBadge status={service.status} />
       </div>
-      <p>{service.description ?? '此服務尚未提供說明。'}</p>
-      <p>
+      <p className="max-w-prose text-sm leading-relaxed text-ink-muted">{service.description ?? '此服務尚未提供說明。'}</p>
+      <p className="text-sm font-medium text-ink">
         {formatDuration(service.durationMinutes)} · {formatPrice(service.price)}
       </p>
-      <Link className="button-link" href={`/services/${service.id}`}>
+      <ButtonLink className="self-start" href={`/services/${service.id}`}>
         查看詳情
-      </Link>
-    </article>
-  );
-}
-
-// 顯示服務狀態標籤，讓 inactive 服務不會被誤認為可預約。
-function StatusBadge({ status }: { status: PublicService['status'] }) {
-  return <span className={`badge badge--${status}`}>{status === 'active' ? '可預約' : '暫停預約'}</span>;
-}
-
-// 顯示基本分頁入口，避免列表資料超過一頁時無法瀏覽。
-function Pagination({ page, totalPages }: { page: number; totalPages: number }) {
-  if (totalPages <= 1) {
-    return null;
-  }
-
-  return (
-    <nav className="pagination" aria-label="服務列表分頁">
-      {page > 1 ? <Link href={`/services?page=${page - 1}`}>上一頁</Link> : <span>上一頁</span>}
-      <span>
-        第 {page} / {totalPages} 頁
-      </span>
-      {page < totalPages ? <Link href={`/services?page=${page + 1}`}>下一頁</Link> : <span>下一頁</span>}
-    </nav>
+      </ButtonLink>
+    </Panel>
   );
 }
 

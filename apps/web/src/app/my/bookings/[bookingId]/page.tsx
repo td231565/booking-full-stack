@@ -1,4 +1,5 @@
 import { BookingDetailClient } from './booking-detail';
+import { Page } from '@/components/ui/page';
 
 type MyBookingDetailPageProps = {
   params: Promise<{
@@ -13,8 +14,8 @@ export default async function MyBookingDetailPage({ params }: MyBookingDetailPag
   const { bookingId } = await params;
 
   return (
-    <main className="page">
+    <Page>
       <BookingDetailClient bookingId={bookingId} />
-    </main>
+    </Page>
   );
 }

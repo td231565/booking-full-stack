@@ -1,4 +1,6 @@
 import { cookies } from 'next/headers';
+import { BookingStatusBadge } from '@/components/ui/badge';
+import { Page, PageHeader, Panel } from '@/components/ui/page';
 import { EmptyState, ErrorState } from '@/components/ui/status-state';
 import { AdminBooking, getAdminBookings } from '@/lib/admin/admin-api';
 import { getAdminErrorMessage } from '@/lib/api/error-messages';
@@ -11,28 +13,27 @@ export default async function AdminBookingsPage() {
     const response = await getAdminBookings({ cookieHeader: (await cookies()).toString() });
 
     return (
-      <main className="page">
-        <header className="page__header">
-          <h1>預約管理</h1>
-          <p>可透過 Admin API 替會員建立、更新備註與取消預約。</p>
-        </header>
+      <Page>
+        <PageHeader description="可透過 Admin API 替會員建立、更新備註與取消預約。" title="預約管理" />
 
         {response.data.length > 0 ? (
-          <div className="grid">
+          <ul className="flex flex-col gap-4">
             {response.data.map((booking) => (
-              <BookingCard key={booking.id} booking={booking} />
+              <li key={booking.id}>
+                <BookingCard booking={booking} />
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
           <EmptyState title="目前沒有預約" description="建立預約後會出現在這裡。" />
         )}
-      </main>
+      </Page>
     );
   } catch (error) {
     return (
-      <main className="page">
+      <Page>
         <ErrorState title="預約資料無法載入" description={getAdminErrorMessage(error)} />
-      </main>
+      </Page>
     );
   }
 }
@@ -40,29 +41,20 @@ export default async function AdminBookingsPage() {
 // 顯示後台預約卡片，包含會員、服務與對外預約狀態。
 function BookingCard({ booking }: { booking: AdminBooking }) {
   return (
-    <article className="card">
-      <h2>{booking.service.name}</h2>
-      <p>
+    <Panel>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">{booking.service.name}</h2>
+        <BookingStatusBadge status={booking.status} />
+      </div>
+      <p className="mt-3 text-sm text-ink-muted">
         {booking.user.displayName}（{booking.user.email}）
       </p>
-      <p>
+      <p className="mt-2 text-sm text-ink">
         {formatDateTime(booking.slot.startAt)} 至 {formatDateTime(booking.slot.endAt)}
       </p>
-      <p>狀態：{formatBookingStatus(booking.status)}</p>
-      {booking.note ? <p>備註：{booking.note}</p> : null}
-    </article>
+      {booking.note ? <p className="mt-2 text-sm text-ink-muted">備註：{booking.note}</p> : null}
+    </Panel>
   );
-}
-
-// 將預約狀態轉成後台易讀文字。
-function formatBookingStatus(status: AdminBooking['status']): string {
-  const labels = {
-    confirmed: '已成立',
-    cancelled: '已取消',
-    completed: '已完成',
-  };
-
-  return labels[status];
 }
 
 // 以台灣時區顯示預約時間。

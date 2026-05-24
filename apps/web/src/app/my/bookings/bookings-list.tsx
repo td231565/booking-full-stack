@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { BookingStatusBadge } from '@/components/ui/badge';
+import { ButtonLink } from '@/components/ui/button';
+import { ListRow, ListStack } from '@/components/ui/list-row';
+import { Panel } from '@/components/ui/page';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/status-state';
 import { ApiClientError } from '@/lib/api/client';
 import { BookingSummary, getMyBookings } from '@/lib/bookings/member-bookings';
@@ -61,21 +64,26 @@ export function BookingsList() {
   }
 
   return (
-    <div className="slot-list">
-      {bookings.map((booking) => (
-        <article className="slot" key={booking.id}>
-          <div>
-            <strong>{booking.service.name}</strong>
-            <p>
-              {formatDateTime(booking.slot.startAt)} · {formatStatus(booking.status)}
-            </p>
-          </div>
-          <Link className="button-link" href={`/my/bookings/${booking.id}`}>
-            查看
-          </Link>
-        </article>
-      ))}
-    </div>
+    <Panel>
+      <ListStack>
+        {bookings.map((booking) => (
+          <ListRow
+            actions={
+              <ButtonLink href={`/my/bookings/${booking.id}`} variant="secondary">
+                查看
+              </ButtonLink>
+            }
+            key={booking.id}
+          >
+            <p className="font-semibold text-ink">{booking.service.name}</p>
+            <p className="mt-1 text-sm text-ink-muted">{formatDateTime(booking.slot.startAt)}</p>
+            <div className="mt-2">
+              <BookingStatusBadge status={booking.status} />
+            </div>
+          </ListRow>
+        ))}
+      </ListStack>
+    </Panel>
   );
 }
 
@@ -85,17 +93,4 @@ function formatDateTime(value: string): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value));
-}
-
-// 將 API 狀態值轉為畫面顯示文字。
-function formatStatus(status: BookingSummary['status']): string {
-  if (status === 'cancelled') {
-    return '已取消';
-  }
-
-  if (status === 'completed') {
-    return '已完成';
-  }
-
-  return '已成立';
 }

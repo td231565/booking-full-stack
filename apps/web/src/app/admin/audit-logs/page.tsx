@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { Page, PageHeader, Panel } from '@/components/ui/page';
 import { EmptyState, ErrorState } from '@/components/ui/status-state';
 import { AdminAuditLog, getAdminAuditLogs } from '@/lib/admin/admin-api';
 import { getAdminErrorMessage } from '@/lib/api/error-messages';
@@ -11,28 +12,27 @@ export default async function AdminAuditLogsPage() {
     const response = await getAdminAuditLogs({ cookieHeader: (await cookies()).toString() });
 
     return (
-      <main className="page">
-        <header className="page__header">
-          <h1>稽核紀錄</h1>
-          <p>記錄後台服務、時段與預約的重要異動。</p>
-        </header>
+      <Page>
+        <PageHeader description="記錄後台服務、時段與預約的重要異動。" title="稽核紀錄" />
 
         {response.data.length > 0 ? (
-          <div className="grid">
+          <ul className="flex flex-col gap-4">
             {response.data.map((log) => (
-              <AuditLogCard key={log.id} log={log} />
+              <li key={log.id}>
+                <AuditLogCard log={log} />
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
           <EmptyState title="尚無稽核紀錄" description="後台建立或更新資料後會產生紀錄。" />
         )}
-      </main>
+      </Page>
     );
   } catch (error) {
     return (
-      <main className="page">
+      <Page>
         <ErrorState title="稽核紀錄無法載入" description={getAdminErrorMessage(error)} />
-      </main>
+      </Page>
     );
   }
 }
@@ -40,15 +40,17 @@ export default async function AdminAuditLogsPage() {
 // 顯示單筆 audit log 摘要，metadata 以精簡 JSON 呈現方便驗證。
 function AuditLogCard({ log }: { log: AdminAuditLog }) {
   return (
-    <article className="card">
-      <h2>{log.action}</h2>
-      <p>
+    <Panel>
+      <h2 className="text-base font-semibold text-ink">{log.action}</h2>
+      <p className="mt-2 text-sm text-ink-muted">
         {log.targetType}：{log.targetId ?? '無'}
       </p>
-      <p>操作者：{log.actorUserId ?? '系統'}</p>
-      <p>時間：{formatDateTime(log.createdAt)}</p>
-      {log.metadata ? <pre>{JSON.stringify(log.metadata, null, 2)}</pre> : null}
-    </article>
+      <p className="mt-1 text-sm text-ink-muted">操作者：{log.actorUserId ?? '系統'}</p>
+      <p className="mt-1 text-sm text-ink">時間：{formatDateTime(log.createdAt)}</p>
+      {log.metadata ? (
+        <pre className="mt-4 overflow-x-auto rounded-md bg-surface p-3 text-xs text-ink-muted">{JSON.stringify(log.metadata, null, 2)}</pre>
+      ) : null}
+    </Panel>
   );
 }
 

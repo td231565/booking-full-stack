@@ -3,6 +3,11 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { BookingStatusBadge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Form, FormError, FormField, TextInput } from '@/components/ui/form';
+import { Notice } from '@/components/ui/notice';
+import { Panel } from '@/components/ui/page';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/status-state';
 import { ApiClientError } from '@/lib/api/client';
 import { getApiErrorMessage } from '@/lib/api/error-messages';
@@ -97,29 +102,50 @@ export function BookingDetailClient({ bookingId }: BookingDetailClientProps) {
   }
 
   return (
-    <section className="card">
-      <h1>預約詳情</h1>
-      <p>服務：{booking.service.name}</p>
-      <p>時間：{formatDateTime(booking.slot.startAt)}</p>
-      <p>狀態：{formatStatus(booking.status)}</p>
-      <p>備註：{booking.note ?? '無'}</p>
-      {booking.cancelReason ? <p>取消原因：{booking.cancelReason}</p> : null}
+    <Panel>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-ink">預約詳情</h1>
+        <BookingStatusBadge status={booking.status} />
+      </div>
+      <dl className="mt-6 space-y-4 text-sm">
+        <div>
+          <dt className="font-medium text-ink-muted">服務</dt>
+          <dd className="mt-1 text-ink">{booking.service.name}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-ink-muted">時間</dt>
+          <dd className="mt-1 text-ink">{formatDateTime(booking.slot.startAt)}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-ink-muted">備註</dt>
+          <dd className="mt-1 text-ink">{booking.note ?? '無'}</dd>
+        </div>
+        {booking.cancelReason ? (
+          <div>
+            <dt className="font-medium text-ink-muted">取消原因</dt>
+            <dd className="mt-1 text-ink">{booking.cancelReason}</dd>
+          </div>
+        ) : null}
+      </dl>
       {canCancel(booking) ? (
-        <form className="form" onSubmit={handleCancel}>
-          <label className="form-field">
-            取消原因（選填）
-            <input maxLength={1000} onChange={(event) => setReason(event.target.value)} type="text" value={reason} />
-          </label>
-          {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
-          <button className="button-link" disabled={isCancelling} type="submit">
+        <Form className="mt-8 border-t border-border pt-6" onSubmit={handleCancel}>
+          <FormField label="取消原因（選填）">
+            <TextInput maxLength={1000} onChange={(event) => setReason(event.target.value)} type="text" value={reason} />
+          </FormField>
+          {errorMessage ? <FormError>{errorMessage}</FormError> : null}
+          <Button disabled={isCancelling} type="submit" variant="secondary">
             {isCancelling ? '取消中...' : '取消預約'}
-          </button>
-        </form>
+          </Button>
+        </Form>
       ) : (
-        <p className="notice">{getCancelDisabledMessage(booking)}</p>
+        <div className="mt-6">
+          <Notice>{getCancelDisabledMessage(booking)}</Notice>
+        </div>
       )}
-      <Link href="/my/bookings">返回我的預約</Link>
-    </section>
+      <Link className="mt-6 inline-block text-sm font-medium text-accent hover:text-accent-hover" href="/my/bookings">
+        返回我的預約
+      </Link>
+    </Panel>
   );
 }
 
@@ -164,17 +190,4 @@ function formatDateTime(value: string): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value));
-}
-
-// 將 API 狀態值轉為畫面顯示文字。
-function formatStatus(status: BookingDetail['status']): string {
-  if (status === 'cancelled') {
-    return '已取消';
-  }
-
-  if (status === 'completed') {
-    return '已完成';
-  }
-
-  return '已成立';
 }

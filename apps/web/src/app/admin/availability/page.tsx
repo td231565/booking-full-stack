@@ -1,4 +1,6 @@
 import { cookies } from 'next/headers';
+import { AdminServiceStatusBadge } from '@/components/ui/badge';
+import { Page, PageHeader, Panel } from '@/components/ui/page';
 import { EmptyState, ErrorState } from '@/components/ui/status-state';
 import { AdminAvailabilitySlot, getAdminAvailabilitySlots } from '@/lib/admin/admin-api';
 import { getAdminErrorMessage } from '@/lib/api/error-messages';
@@ -11,28 +13,27 @@ export default async function AdminAvailabilityPage() {
     const response = await getAdminAvailabilitySlots({ cookieHeader: (await cookies()).toString() });
 
     return (
-      <main className="page">
-        <header className="page__header">
-          <h1>時段管理</h1>
-          <p>可透過 Admin API 建立、更新與批次產生時段。</p>
-        </header>
+      <Page>
+        <PageHeader description="可透過 Admin API 建立、更新與批次產生時段。" title="時段管理" />
 
         {response.data.length > 0 ? (
-          <div className="grid">
+          <ul className="flex flex-col gap-4">
             {response.data.map((slot) => (
-              <SlotCard key={slot.id} slot={slot} />
+              <li key={slot.id}>
+                <SlotCard slot={slot} />
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
           <EmptyState title="尚未建立時段" description="可先建立 active 服務，再建立或批次產生時段。" />
         )}
-      </main>
+      </Page>
     );
   } catch (error) {
     return (
-      <main className="page">
+      <Page>
         <ErrorState title="時段資料無法載入" description={getAdminErrorMessage(error)} />
-      </main>
+      </Page>
     );
   }
 }
@@ -40,15 +41,16 @@ export default async function AdminAvailabilityPage() {
 // 顯示後台時段卡片，包含服務資訊與目前時段狀態。
 function SlotCard({ slot }: { slot: AdminAvailabilitySlot }) {
   return (
-    <article className="card">
-      <h2>{slot.service.name}</h2>
-      <p>
+    <Panel>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">{slot.service.name}</h2>
+        <AdminServiceStatusBadge status={slot.service.status} />
+      </div>
+      <p className="mt-3 text-sm text-ink">
         {formatDateTime(slot.startAt)} 至 {formatDateTime(slot.endAt)}
       </p>
-      <p>
-        服務狀態：{slot.service.status} · 時段狀態：{slot.status}
-      </p>
-    </article>
+      <p className="mt-2 text-sm text-ink-muted">時段狀態：{slot.status}</p>
+    </Panel>
   );
 }
 
