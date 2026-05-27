@@ -54,6 +54,34 @@ describe('Booking API (integration)', () => {
     };
   }
 
+  // 註冊、升級 admin 並後台登入，回傳 admin session 供建立服務／時段。
+  async function registerPromoteAndAdminLogin(
+    email: string,
+    displayName: string,
+    forwardedOctet: number,
+  ): Promise<AuthSession> {
+    const member = await registerAndLogin(email, displayName, forwardedOctet);
+    await promoteUserToAdmin(member.email);
+
+    const adminLogin = await request(app.getHttpServer())
+      .post('/api/admin/auth/login')
+      .set('X-Forwarded-For', `10.20.${forwardedOctet}.1`)
+      .send({ email, password })
+      .expect(200);
+
+    const token = parseSessionCookie(adminLogin, 'admin');
+
+    if (!token) {
+      throw new Error(`missing admin session cookie for ${email}`);
+    }
+
+    return {
+      token,
+      userId: member.userId,
+      email: member.email,
+    };
+  }
+
   // 建立 admin 服務與可預約時段，回傳 slotId 供 booking 案例共用。
   async function createServiceWithSlot(
     adminToken: string,
@@ -61,7 +89,7 @@ describe('Booking API (integration)', () => {
   ): Promise<{ serviceId: string; slotId: string }> {
     const service = await request(app.getHttpServer())
       .post('/api/admin/services')
-      .set('Cookie', sessionCookieHeader(adminToken))
+      .set('Cookie', sessionCookieHeader(adminToken, 'admin'))
       .send({
         name: `Booking Svc ${runId}-${hoursFromNow}`,
         durationMinutes: 60,
@@ -75,7 +103,7 @@ describe('Booking API (integration)', () => {
 
     const slot = await request(app.getHttpServer())
       .post('/api/admin/availability-slots')
-      .set('Cookie', sessionCookieHeader(adminToken))
+      .set('Cookie', sessionCookieHeader(adminToken, 'admin'))
       .send({
         serviceId: service.body.data.id,
         startAt: start.toISOString(),
@@ -96,8 +124,7 @@ describe('Booking API (integration)', () => {
     const memberAEmail = `booking-member-a-${runId}@example.com`;
     const memberBEmail = `booking-member-b-${runId}@example.com`;
 
-    const admin = await registerAndLogin(adminEmail, 'Race Admin', 1);
-    await promoteUserToAdmin(admin.email);
+    const admin = await registerPromoteAndAdminLogin(adminEmail, 'Race Admin', 1);
 
     const memberA = await registerAndLogin(memberAEmail, 'Member A', 2);
     const memberB = await registerAndLogin(memberBEmail, 'Member B', 3);
@@ -124,8 +151,7 @@ describe('Booking API (integration)', () => {
     const adminEmail = `booking-admin-cancel-${runId}@example.com`;
     const memberEmail = `booking-member-cancel-${runId}@example.com`;
 
-    const admin = await registerAndLogin(adminEmail, 'Cancel Admin', 4);
-    await promoteUserToAdmin(admin.email);
+    const admin = await registerPromoteAndAdminLogin(adminEmail, 'Cancel Admin', 4);
 
     const member = await registerAndLogin(memberEmail, 'Cancel Member', 5);
     const { slotId } = await createServiceWithSlot(admin.token, 2);
@@ -151,8 +177,7 @@ describe('Booking API (integration)', () => {
     const memberAEmail = `booking-list-a-${runId}@example.com`;
     const memberBEmail = `booking-list-b-${runId}@example.com`;
 
-    const admin = await registerAndLogin(adminEmail, 'List Admin', 6);
-    await promoteUserToAdmin(admin.email);
+    const admin = await registerPromoteAndAdminLogin(adminEmail, 'List Admin', 6);
 
     const memberA = await registerAndLogin(memberAEmail, 'List A', 7);
     const memberB = await registerAndLogin(memberBEmail, 'List B', 8);
@@ -188,8 +213,7 @@ describe('Booking API (integration)', () => {
     const ownerEmail = `booking-owner-${runId}@example.com`;
     const otherEmail = `booking-other-${runId}@example.com`;
 
-    const admin = await registerAndLogin(adminEmail, 'Peek Admin', 9);
-    await promoteUserToAdmin(admin.email);
+    const admin = await registerPromoteAndAdminLogin(adminEmail, 'Peek Admin', 9);
 
     const owner = await registerAndLogin(ownerEmail, 'Owner', 10);
     const other = await registerAndLogin(otherEmail, 'Other', 11);
@@ -215,8 +239,7 @@ describe('Booking API (integration)', () => {
       const adminEmail = `booking-happy-admin-${runId}@example.com`;
       const memberEmail = `booking-happy-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Happy Admin', 12);
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Happy Admin', 12);
 
       const member = await registerAndLogin(memberEmail, 'Happy Member', 13);
       const { slotId } = await createServiceWithSlot(admin.token, 5);
@@ -239,8 +262,7 @@ describe('Booking API (integration)', () => {
       const adminEmail = `booking-log-create-admin-${runId}@example.com`;
       const memberEmail = `booking-log-create-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Log Create Admin', 14);
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Log Create Admin', 14);
 
       const member = await registerAndLogin(memberEmail, 'Log Create Member', 15);
       const { slotId } = await createServiceWithSlot(admin.token, 6);
@@ -262,8 +284,7 @@ describe('Booking API (integration)', () => {
       const adminEmail = `booking-cancel-ok-admin-${runId}@example.com`;
       const memberEmail = `booking-cancel-ok-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Cancel OK Admin', 16);
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Cancel OK Admin', 16);
 
       const member = await registerAndLogin(memberEmail, 'Cancel OK Member', 17);
       const { slotId } = await createServiceWithSlot(admin.token, 10);
@@ -288,8 +309,7 @@ describe('Booking API (integration)', () => {
       const adminEmail = `booking-log-cancel-admin-${runId}@example.com`;
       const memberEmail = `booking-log-cancel-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Log Cancel Admin', 18);
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Log Cancel Admin', 18);
 
       const member = await registerAndLogin(memberEmail, 'Log Cancel Member', 19);
       const { slotId } = await createServiceWithSlot(admin.token, 11);
@@ -339,15 +359,14 @@ describe('Booking API (integration)', () => {
       const adminEmail = `booking-inactive-admin-${runId}@example.com`;
       const memberEmail = `booking-inactive-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Inactive Admin', 20);
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Inactive Admin', 20);
 
       const member = await registerAndLogin(memberEmail, 'Inactive Member', 21);
       const { serviceId, slotId } = await createServiceWithSlot(admin.token, 5);
 
       await request(app.getHttpServer())
         .patch(`/api/admin/services/${serviceId}`)
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({ status: 'inactive' })
         .expect(200);
 
@@ -365,14 +384,13 @@ describe('Booking API (integration)', () => {
       const adminEmail = `booking-blocked-admin-${runId}@example.com`;
       const memberEmail = `booking-blocked-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Blocked Admin', 22);
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Blocked Admin', 22);
 
       const member = await registerAndLogin(memberEmail, 'Blocked Member', 23);
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Blocked Svc ${runId}`,
           durationMinutes: 60,
@@ -386,7 +404,7 @@ describe('Booking API (integration)', () => {
 
       const slot = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -409,8 +427,7 @@ describe('Booking API (integration)', () => {
       const adminEmail = `booking-soon-admin-${runId}@example.com`;
       const memberEmail = `booking-soon-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Soon Admin', 24);
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Soon Admin', 24);
 
       const member = await registerAndLogin(memberEmail, 'Soon Member', 25);
       const { slotId } = await createServiceWithSlot(admin.token, 0.5);
@@ -429,8 +446,7 @@ describe('Booking API (integration)', () => {
       const adminEmail = `booking-dup-admin-${runId}@example.com`;
       const memberEmail = `booking-dup-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Dup Admin', 26);
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Dup Admin', 26);
 
       const member = await registerAndLogin(memberEmail, 'Dup Member', 27);
       const { slotId } = await createServiceWithSlot(admin.token, 5);
@@ -455,8 +471,7 @@ describe('Booking API (integration)', () => {
       const adminEmail = `booking-cancel-twice-admin-${runId}@example.com`;
       const memberEmail = `booking-cancel-twice-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Cancel Twice Admin', 28);
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Cancel Twice Admin', 28);
 
       const member = await registerAndLogin(memberEmail, 'Cancel Twice Member', 29);
       const { slotId } = await createServiceWithSlot(admin.token, 10);
@@ -503,14 +518,13 @@ describe('Booking API (integration)', () => {
       const adminEmail = `booking-completed-admin-${runId}@example.com`;
       const memberEmail = `booking-completed-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Completed Admin', 31);
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Completed Admin', 31);
 
       const member = await registerAndLogin(memberEmail, 'Completed Member', 32);
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Completed Svc ${runId}`,
           durationMinutes: 60,
@@ -524,7 +538,7 @@ describe('Booking API (integration)', () => {
 
       const slot = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -535,7 +549,7 @@ describe('Booking API (integration)', () => {
 
       const booking = await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: member.userId,
           availabilitySlotId: slot.body.data.id,
@@ -556,14 +570,13 @@ describe('Booking API (integration)', () => {
       const adminEmail = `booking-completed-log-admin-${runId}@example.com`;
       const memberEmail = `booking-completed-log-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Completed Log Admin', 33);
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Completed Log Admin', 33);
 
       const member = await registerAndLogin(memberEmail, 'Completed Log Member', 34);
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Completed Log Svc ${runId}`,
           durationMinutes: 60,
@@ -577,7 +590,7 @@ describe('Booking API (integration)', () => {
 
       const slot = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -588,7 +601,7 @@ describe('Booking API (integration)', () => {
 
       const booking = await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: member.userId,
           availabilitySlotId: slot.body.data.id,

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { Request } from 'express';
+import { readSessionTokenFromRequest } from '../../common/auth/session-cookie';
 import { listResponse, successResponse } from '../../common/api-response';
 import { ApiException } from '../../common/api-exception';
 import { AuthService } from '../auth/auth.service';
@@ -183,20 +184,9 @@ export class AdminController {
     };
   }
 
-  // 從 Cookie header 解析 session token，讓 Admin API 的權限檢查完全在後端完成。
+  // Admin API 僅讀 booking_admin_session，member cookie 不視為後台登入。
   private readSessionToken(request: Request): string | undefined {
-    const cookieHeader = request.headers.cookie;
-
-    if (!cookieHeader) {
-      return undefined;
-    }
-
-    const cookie = cookieHeader
-      .split(';')
-      .map((item) => item.trim())
-      .find((item) => item.startsWith(`${this.authService.getSessionCookieName()}=`));
-
-    return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : undefined;
+    return readSessionTokenFromRequest(request, this.authService.getSessionCookieName('admin'));
   }
 
   // 將 request 中的稽核資訊收斂成 service 需要的格式。

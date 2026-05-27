@@ -1,5 +1,6 @@
 import { Controller, Get, Query, Req } from '@nestjs/common';
 import { Request } from 'express';
+import { readSessionTokenFromRequest } from '../../common/auth/session-cookie';
 import { listResponse } from '../../common/api-response';
 import { ApiException } from '../../common/api-exception';
 import { AuthService } from '../auth/auth.service';
@@ -48,20 +49,9 @@ export class AuditLogController {
     }
   }
 
-  // 從 Cookie header 解析 session token，避免稽核查詢只靠前端判斷權限。
+  // 稽核查詢僅接受 admin cookie，與會員 session 分離。
   private readSessionToken(request: Request): string | undefined {
-    const cookieHeader = request.headers.cookie;
-
-    if (!cookieHeader) {
-      return undefined;
-    }
-
-    const cookie = cookieHeader
-      .split(';')
-      .map((item) => item.trim())
-      .find((item) => item.startsWith(`${this.authService.getSessionCookieName()}=`));
-
-    return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : undefined;
+    return readSessionTokenFromRequest(request, this.authService.getSessionCookieName('admin'));
   }
 
   // 將分頁 query 轉成正整數，無效值交由 service 套用保守預設值。

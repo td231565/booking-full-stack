@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Request } from 'express';
+import { readSessionTokenFromRequest } from '../auth/session-cookie';
 import { ApiException } from '../api-exception';
 import { AuthService } from '../../modules/auth/auth.service';
 import {
@@ -56,7 +57,7 @@ export class ContractRateLimitGuard implements CanActivate {
       };
     }
 
-    if (method === 'POST' && path === '/api/auth/login') {
+    if (method === 'POST' && (path === '/api/auth/login' || path === '/api/admin/auth/login')) {
       const email = this.readEmailFromBody(request);
       return {
         key: `login:${this.getClientIp(request)}:${email ?? 'unknown'}`,
@@ -138,7 +139,7 @@ export class ContractRateLimitGuard implements CanActivate {
 
   // 嘗試解析 session，失敗時回 null 不拋錯，讓 rate limit 仍可運作。
   private async tryGetCurrentUser(request: Request) {
-    const token = this.readSessionToken(request);
+    const token = this.readSessionToken(request, this.resolveSessionAudience(request));
 
     if (!token) {
       return null;
@@ -149,6 +150,17 @@ export class ContractRateLimitGuard implements CanActivate {
     } catch {
       return null;
     }
+  }
+
+  // Admin 路徑讀 admin cookie，其餘讀 member cookie，與 controller 分流一致。
+  private resolveSessionAudience(request: Request): 'member' | 'admin' {
+    const path = this.normalizePath(request);
+
+    if (path.startsWith('/api/admin')) {
+      return 'admin';
+    }
+
+    return 'member';
   }
 
   // 從 body 讀取 email，供登入 rate limit 使用 IP + email 作為 key。
@@ -168,21 +180,9 @@ export class ContractRateLimitGuard implements CanActivate {
     return email.trim().toLowerCase();
   }
 
-  // 從 Cookie 解析 session token。
-  private readSessionToken(request: Request): string | undefined {
-    const cookieHeader = request.headers.cookie;
-
-    if (!cookieHeader) {
-      return undefined;
-    }
-
-    const cookieName = `${this.authService.getSessionCookieName()}=`;
-    const cookie = cookieHeader
-      .split(';')
-      .map((item) => item.trim())
-      .find((item) => item.startsWith(cookieName));
-
-    return cookie ? decodeURIComponent(cookie.slice(cookieName.length)) : undefined;
+  // 依 audience 從 Cookie 解析 session token。
+  private readSessionToken(request: Request, audience: 'member' | 'admin'): string | undefined {
+    return readSessionTokenFromRequest(request, this.authService.getSessionCookieName(audience));
   }
 
   // 正規化路徑，移除 query string 以便比對路由規則。

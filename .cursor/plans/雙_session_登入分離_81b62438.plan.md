@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: phase3-admin-e2e
     content: Phase 3 RED→GREEN：admin-auth.e2e + AdminAuthController + booking/admin 分流讀 cookie
-    status: pending
+    status: completed
   - id: phase4-web-tests
     content: Phase 4 RED→GREEN：admin-login-form / get-current-user 前端測試與元件
     status: pending

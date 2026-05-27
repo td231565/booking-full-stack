@@ -54,15 +54,44 @@ describe('Admin API (integration)', () => {
     };
   }
 
+  // 後台登入取得 admin cookie，須在 promoteUserToAdmin 之後呼叫。
+  async function loginAdminSession(email: string, forwardedOctet: number): Promise<string> {
+    const login = await request(app.getHttpServer())
+      .post('/api/admin/auth/login')
+      .set('X-Forwarded-For', `10.30.${forwardedOctet}.1`)
+      .send({ email, password })
+      .expect(200);
+
+    const token = parseSessionCookie(login, 'admin');
+
+    if (!token) {
+      throw new Error(`missing admin session cookie for ${email}`);
+    }
+
+    return token;
+  }
+
+  // 註冊、升級 admin 並以後台登入，回傳 admin session 供 Admin API 測試。
+  async function registerPromoteAndAdminLogin(email: string, displayName: string): Promise<AuthSession> {
+    const member = await registerAndLogin(email, displayName);
+    await promoteUserToAdmin(member.email);
+    const token = await loginAdminSession(member.email, registerIpCounter);
+
+    return {
+      token,
+      userId: member.userId,
+      email: member.email,
+    };
+  }
+
   // Admin CRUD 服務與時段，並驗證 audit log 寫入。
   it('Admin 可 CRUD 服務與時段並寫入 audit log', async () => {
     const adminEmail = `admin-crud-${runId}@example.com`;
-    const admin = await registerAndLogin(adminEmail, 'Admin CRUD');
-    await promoteUserToAdmin(admin.email);
+    const admin = await registerPromoteAndAdminLogin(adminEmail, 'Admin CRUD');
 
     const created = await request(app.getHttpServer())
       .post('/api/admin/services')
-      .set('Cookie', sessionCookieHeader(admin.token))
+      .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
       .send({
         name: `Admin Service ${runId}`,
         durationMinutes: 60,
@@ -75,7 +104,7 @@ describe('Admin API (integration)', () => {
 
     await request(app.getHttpServer())
       .patch(`/api/admin/services/${serviceId}`)
-      .set('Cookie', sessionCookieHeader(admin.token))
+      .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
       .send({ name: `Admin Service Updated ${runId}` })
       .expect(200);
 
@@ -84,7 +113,7 @@ describe('Admin API (integration)', () => {
 
     const slot = await request(app.getHttpServer())
       .post('/api/admin/availability-slots')
-      .set('Cookie', sessionCookieHeader(admin.token))
+      .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
       .send({
         serviceId,
         startAt: start.toISOString(),
@@ -95,7 +124,7 @@ describe('Admin API (integration)', () => {
 
     await request(app.getHttpServer())
       .patch(`/api/admin/availability-slots/${slot.body.data.id}`)
-      .set('Cookie', sessionCookieHeader(admin.token))
+      .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
       .send({ status: 'blocked' })
       .expect(200);
 
@@ -108,12 +137,11 @@ describe('Admin API (integration)', () => {
   // 批次產生時段第二次應跳過重複（skipped >= 1）。
   it('POST /api/admin/availability-slots/bulk-generate 會跳過重複時段', async () => {
     const adminEmail = `admin-bulk-${runId}@example.com`;
-    const admin = await registerAndLogin(adminEmail, 'Admin Bulk');
-    await promoteUserToAdmin(admin.email);
+    const admin = await registerPromoteAndAdminLogin(adminEmail, 'Admin Bulk');
 
     const service = await request(app.getHttpServer())
       .post('/api/admin/services')
-      .set('Cookie', sessionCookieHeader(admin.token))
+      .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
       .send({
         name: `Bulk Service ${runId}`,
         durationMinutes: 60,
@@ -135,7 +163,7 @@ describe('Admin API (integration)', () => {
 
     const first = await request(app.getHttpServer())
       .post('/api/admin/availability-slots/bulk-generate')
-      .set('Cookie', sessionCookieHeader(admin.token))
+      .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
       .send(payload)
       .expect(200);
 
@@ -143,7 +171,7 @@ describe('Admin API (integration)', () => {
 
     const second = await request(app.getHttpServer())
       .post('/api/admin/availability-slots/bulk-generate')
-      .set('Cookie', sessionCookieHeader(admin.token))
+      .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
       .send(payload)
       .expect(200);
 
@@ -156,14 +184,13 @@ describe('Admin API (integration)', () => {
     const adminEmail = `admin-booking-log-${runId}@example.com`;
     const memberEmail = `admin-member-log-${runId}@example.com`;
 
-    const admin = await registerAndLogin(adminEmail, 'Admin Booking Log');
-    await promoteUserToAdmin(admin.email);
+    const admin = await registerPromoteAndAdminLogin(adminEmail, 'Admin Booking Log');
 
     const member = await registerAndLogin(memberEmail, 'Member Booking Log');
 
     const service = await request(app.getHttpServer())
       .post('/api/admin/services')
-      .set('Cookie', sessionCookieHeader(admin.token))
+      .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
       .send({
         name: `Log Service ${runId}`,
         durationMinutes: 60,
@@ -177,7 +204,7 @@ describe('Admin API (integration)', () => {
 
     const slot = await request(app.getHttpServer())
       .post('/api/admin/availability-slots')
-      .set('Cookie', sessionCookieHeader(admin.token))
+      .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
       .send({
         serviceId: service.body.data.id,
         startAt: start.toISOString(),
@@ -188,7 +215,7 @@ describe('Admin API (integration)', () => {
 
     const booking = await request(app.getHttpServer())
       .post('/api/admin/bookings')
-      .set('Cookie', sessionCookieHeader(admin.token))
+      .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
       .send({
         userId: member.userId,
         availabilitySlotId: slot.body.data.id,
@@ -205,7 +232,7 @@ describe('Admin API (integration)', () => {
 
     await request(app.getHttpServer())
       .post(`/api/admin/bookings/${bookingId}/cancel`)
-      .set('Cookie', sessionCookieHeader(admin.token))
+      .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
       .send({ reason: 'admin cancel' })
       .expect(200);
 
@@ -223,17 +250,17 @@ describe('Admin API (integration)', () => {
       expect(response.body.error.code).toBe('UNAUTHENTICATED');
     });
 
-    // 一般 member 呼叫 Admin API 應回 403。
-    it('一般 member 呼叫 Admin API 回 403 FORBIDDEN', async () => {
+    // 僅 member cookie 呼叫 Admin API 應回 401（無 admin session）。
+    it('一般 member 呼叫 Admin API 回 401 UNAUTHENTICATED', async () => {
       const memberEmail = `admin-forbidden-${runId}@example.com`;
       const member = await registerAndLogin(memberEmail, 'Forbidden Member');
 
       const response = await request(app.getHttpServer())
         .get('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(member.token))
-        .expect(403);
+        .set('Cookie', sessionCookieHeader(member.token, 'member'))
+        .expect(401);
 
-      expect(response.body.error.code).toBe('FORBIDDEN');
+      expect(response.body.error.code).toBe('UNAUTHENTICATED');
     });
   });
 
@@ -241,12 +268,11 @@ describe('Admin API (integration)', () => {
     // Admin 服務列表應包含 hidden 服務，公開 API 則不包含。
     it('GET /api/admin/services 含 hidden 服務', async () => {
       const adminEmail = `admin-hidden-list-${runId}@example.com`;
-      const admin = await registerAndLogin(adminEmail, 'Hidden List Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Hidden List Admin');
 
       const hidden = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Hidden Svc ${runId}`,
           durationMinutes: 60,
@@ -257,7 +283,7 @@ describe('Admin API (integration)', () => {
 
       const adminList = await request(app.getHttpServer())
         .get('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .expect(200);
 
       expect(adminList.body.data.some((item: { id: string }) => item.id === hidden.body.data.id)).toBe(true);
@@ -270,12 +296,11 @@ describe('Admin API (integration)', () => {
     // Admin 可取得 hidden 服務詳情。
     it('GET /api/admin/services/:id 可取得 hidden 服務', async () => {
       const adminEmail = `admin-hidden-detail-${runId}@example.com`;
-      const admin = await registerAndLogin(adminEmail, 'Hidden Detail Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Hidden Detail Admin');
 
       const hidden = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Hidden Detail ${runId}`,
           durationMinutes: 60,
@@ -286,7 +311,7 @@ describe('Admin API (integration)', () => {
 
       const detail = await request(app.getHttpServer())
         .get(`/api/admin/services/${hidden.body.data.id}`)
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .expect(200);
 
       expect(detail.body.data.status).toBe('hidden');
@@ -297,12 +322,11 @@ describe('Admin API (integration)', () => {
     // inactive 服務不可建立新時段。
     it('Admin 替 inactive 服務建立時段被拒絕', async () => {
       const adminEmail = `admin-slot-inactive-${runId}@example.com`;
-      const admin = await registerAndLogin(adminEmail, 'Slot Inactive Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Slot Inactive Admin');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Inactive Slot Svc ${runId}`,
           durationMinutes: 60,
@@ -316,7 +340,7 @@ describe('Admin API (integration)', () => {
 
       const response = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -331,12 +355,11 @@ describe('Admin API (integration)', () => {
     // hidden 服務不可建立新時段。
     it('Admin 替 hidden 服務建立時段被拒絕', async () => {
       const adminEmail = `admin-slot-hidden-${runId}@example.com`;
-      const admin = await registerAndLogin(adminEmail, 'Slot Hidden Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Slot Hidden Admin');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Hidden Slot Svc ${runId}`,
           durationMinutes: 60,
@@ -350,7 +373,7 @@ describe('Admin API (integration)', () => {
 
       const response = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -365,12 +388,11 @@ describe('Admin API (integration)', () => {
     // 時段長度不符服務 durationMinutes 應拒絕。
     it('Admin 建立時段長度不符 durationMinutes 被拒絕', async () => {
       const adminEmail = `admin-slot-duration-${runId}@example.com`;
-      const admin = await registerAndLogin(adminEmail, 'Slot Duration Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Slot Duration Admin');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Duration Svc ${runId}`,
           durationMinutes: 60,
@@ -384,7 +406,7 @@ describe('Admin API (integration)', () => {
 
       const response = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -403,13 +425,12 @@ describe('Admin API (integration)', () => {
       const adminEmail = `admin-audit-create-${runId}@example.com`;
       const memberEmail = `admin-audit-create-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Audit Create Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Audit Create Admin');
       const member = await registerAndLogin(memberEmail, 'Audit Create Member');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Audit Create Svc ${runId}`,
           durationMinutes: 60,
@@ -423,7 +444,7 @@ describe('Admin API (integration)', () => {
 
       const slot = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -434,7 +455,7 @@ describe('Admin API (integration)', () => {
 
       const booking = await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: member.userId,
           availabilitySlotId: slot.body.data.id,
@@ -444,7 +465,7 @@ describe('Admin API (integration)', () => {
       const logs = await request(app.getHttpServer())
         .get('/api/admin/audit-logs')
         .query({ action: 'admin.booking.create', targetId: booking.body.data.id })
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .expect(200);
 
       expect(logs.body.data.length).toBeGreaterThanOrEqual(1);
@@ -455,13 +476,12 @@ describe('Admin API (integration)', () => {
       const adminEmail = `admin-audit-update-${runId}@example.com`;
       const memberEmail = `admin-audit-update-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Audit Update Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Audit Update Admin');
       const member = await registerAndLogin(memberEmail, 'Audit Update Member');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Audit Update Svc ${runId}`,
           durationMinutes: 60,
@@ -475,7 +495,7 @@ describe('Admin API (integration)', () => {
 
       const slot = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -486,7 +506,7 @@ describe('Admin API (integration)', () => {
 
       const booking = await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: member.userId,
           availabilitySlotId: slot.body.data.id,
@@ -495,14 +515,14 @@ describe('Admin API (integration)', () => {
 
       await request(app.getHttpServer())
         .patch(`/api/admin/bookings/${booking.body.data.id}`)
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({ note: 'updated by admin' })
         .expect(200);
 
       const logs = await request(app.getHttpServer())
         .get('/api/admin/audit-logs')
         .query({ action: 'admin.booking.update', targetId: booking.body.data.id })
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .expect(200);
 
       expect(logs.body.data.length).toBeGreaterThanOrEqual(1);
@@ -513,13 +533,12 @@ describe('Admin API (integration)', () => {
       const adminEmail = `admin-audit-cancel-${runId}@example.com`;
       const memberEmail = `admin-audit-cancel-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Audit Cancel Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Audit Cancel Admin');
       const member = await registerAndLogin(memberEmail, 'Audit Cancel Member');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Audit Cancel Svc ${runId}`,
           durationMinutes: 60,
@@ -533,7 +552,7 @@ describe('Admin API (integration)', () => {
 
       const slot = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -544,7 +563,7 @@ describe('Admin API (integration)', () => {
 
       const booking = await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: member.userId,
           availabilitySlotId: slot.body.data.id,
@@ -553,14 +572,14 @@ describe('Admin API (integration)', () => {
 
       await request(app.getHttpServer())
         .post(`/api/admin/bookings/${booking.body.data.id}/cancel`)
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({ reason: 'audit cancel' })
         .expect(200);
 
       const logs = await request(app.getHttpServer())
         .get('/api/admin/audit-logs')
         .query({ action: 'admin.booking.cancel', targetId: booking.body.data.id })
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .expect(200);
 
       expect(logs.body.data.length).toBeGreaterThanOrEqual(1);
@@ -571,13 +590,12 @@ describe('Admin API (integration)', () => {
       const adminEmail = `admin-cancel-soon-${runId}@example.com`;
       const memberEmail = `admin-cancel-soon-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Cancel Soon Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Cancel Soon Admin');
       const member = await registerAndLogin(memberEmail, 'Cancel Soon Member');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Cancel Soon Svc ${runId}`,
           durationMinutes: 60,
@@ -591,7 +609,7 @@ describe('Admin API (integration)', () => {
 
       const slot = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -602,7 +620,7 @@ describe('Admin API (integration)', () => {
 
       const booking = await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: member.userId,
           availabilitySlotId: slot.body.data.id,
@@ -611,7 +629,7 @@ describe('Admin API (integration)', () => {
 
       const cancelled = await request(app.getHttpServer())
         .post(`/api/admin/bookings/${booking.body.data.id}/cancel`)
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({ reason: 'admin within 4h' })
         .expect(200);
 
@@ -623,13 +641,12 @@ describe('Admin API (integration)', () => {
       const adminEmail = `admin-cancel-twice-${runId}@example.com`;
       const memberEmail = `admin-cancel-twice-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Cancel Twice Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Cancel Twice Admin');
       const member = await registerAndLogin(memberEmail, 'Cancel Twice Member');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Cancel Twice Svc ${runId}`,
           durationMinutes: 60,
@@ -643,7 +660,7 @@ describe('Admin API (integration)', () => {
 
       const slot = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -654,7 +671,7 @@ describe('Admin API (integration)', () => {
 
       const booking = await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: member.userId,
           availabilitySlotId: slot.body.data.id,
@@ -663,13 +680,13 @@ describe('Admin API (integration)', () => {
 
       await request(app.getHttpServer())
         .post(`/api/admin/bookings/${booking.body.data.id}/cancel`)
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({ reason: 'first' })
         .expect(200);
 
       const again = await request(app.getHttpServer())
         .post(`/api/admin/bookings/${booking.body.data.id}/cancel`)
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({ reason: 'second' })
         .expect(409);
 
@@ -681,13 +698,12 @@ describe('Admin API (integration)', () => {
       const adminEmail = `admin-cancel-completed-${runId}@example.com`;
       const memberEmail = `admin-cancel-completed-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Cancel Completed Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Cancel Completed Admin');
       const member = await registerAndLogin(memberEmail, 'Cancel Completed Member');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Cancel Completed Svc ${runId}`,
           durationMinutes: 60,
@@ -701,7 +717,7 @@ describe('Admin API (integration)', () => {
 
       const slot = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -712,7 +728,7 @@ describe('Admin API (integration)', () => {
 
       const booking = await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: member.userId,
           availabilitySlotId: slot.body.data.id,
@@ -721,7 +737,7 @@ describe('Admin API (integration)', () => {
 
       const response = await request(app.getHttpServer())
         .post(`/api/admin/bookings/${booking.body.data.id}/cancel`)
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({ reason: 'too late completed' })
         .expect(409);
 
@@ -734,14 +750,13 @@ describe('Admin API (integration)', () => {
       const memberAEmail = `admin-double-a-${runId}@example.com`;
       const memberBEmail = `admin-double-b-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Double Book Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Double Book Admin');
       const memberA = await registerAndLogin(memberAEmail, 'Double A');
       const memberB = await registerAndLogin(memberBEmail, 'Double B');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Double Book Svc ${runId}`,
           durationMinutes: 60,
@@ -755,7 +770,7 @@ describe('Admin API (integration)', () => {
 
       const slot = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -766,7 +781,7 @@ describe('Admin API (integration)', () => {
 
       await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: memberA.userId,
           availabilitySlotId: slot.body.data.id,
@@ -775,7 +790,7 @@ describe('Admin API (integration)', () => {
 
       const second = await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: memberB.userId,
           availabilitySlotId: slot.body.data.id,
@@ -790,13 +805,12 @@ describe('Admin API (integration)', () => {
       const adminEmail = `admin-book-soon-${runId}@example.com`;
       const memberEmail = `admin-book-soon-member-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'Book Soon Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Book Soon Admin');
       const member = await registerAndLogin(memberEmail, 'Book Soon Member');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Book Soon Svc ${runId}`,
           durationMinutes: 60,
@@ -810,7 +824,7 @@ describe('Admin API (integration)', () => {
 
       const slot = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: start.toISOString(),
@@ -821,7 +835,7 @@ describe('Admin API (integration)', () => {
 
       await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: member.userId,
           availabilitySlotId: slot.body.data.id,
@@ -835,14 +849,13 @@ describe('Admin API (integration)', () => {
       const memberAEmail = `admin-list-a-${runId}@example.com`;
       const memberBEmail = `admin-list-b-${runId}@example.com`;
 
-      const admin = await registerAndLogin(adminEmail, 'List Bookings Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'List Bookings Admin');
       const memberA = await registerAndLogin(memberAEmail, 'List A');
       const memberB = await registerAndLogin(memberBEmail, 'List B');
 
       const service = await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `List Bookings Svc ${runId}`,
           durationMinutes: 60,
@@ -858,7 +871,7 @@ describe('Admin API (integration)', () => {
 
       const slotA = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: startA.toISOString(),
@@ -869,7 +882,7 @@ describe('Admin API (integration)', () => {
 
       const slotB = await request(app.getHttpServer())
         .post('/api/admin/availability-slots')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           serviceId: service.body.data.id,
           startAt: startB.toISOString(),
@@ -880,7 +893,7 @@ describe('Admin API (integration)', () => {
 
       const bookingA = await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: memberA.userId,
           availabilitySlotId: slotA.body.data.id,
@@ -889,7 +902,7 @@ describe('Admin API (integration)', () => {
 
       const bookingB = await request(app.getHttpServer())
         .post('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           userId: memberB.userId,
           availabilitySlotId: slotB.body.data.id,
@@ -898,7 +911,7 @@ describe('Admin API (integration)', () => {
 
       const list = await request(app.getHttpServer())
         .get('/api/admin/bookings')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .expect(200);
 
       const ids = list.body.data.map((item: { id: string }) => item.id);
@@ -909,12 +922,11 @@ describe('Admin API (integration)', () => {
     // audit-logs 可依 action 篩選查詢。
     it('GET /api/admin/audit-logs 可依 action 查詢', async () => {
       const adminEmail = `admin-audit-filter-${runId}@example.com`;
-      const admin = await registerAndLogin(adminEmail, 'Audit Filter Admin');
-      await promoteUserToAdmin(admin.email);
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Audit Filter Admin');
 
       await request(app.getHttpServer())
         .post('/api/admin/services')
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .send({
           name: `Audit Filter Svc ${runId}`,
           durationMinutes: 60,
@@ -926,7 +938,7 @@ describe('Admin API (integration)', () => {
       const logs = await request(app.getHttpServer())
         .get('/api/admin/audit-logs')
         .query({ action: 'admin.service.create' })
-        .set('Cookie', sessionCookieHeader(admin.token))
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
         .expect(200);
 
       expect(logs.body.data.every((item: { action: string }) => item.action === 'admin.service.create')).toBe(true);

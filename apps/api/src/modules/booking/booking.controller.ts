@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { Request } from 'express';
+import { readSessionTokenFromRequest } from '../../common/auth/session-cookie';
 import { listResponse, successResponse } from '../../common/api-response';
 import { AuthService } from '../auth/auth.service';
 import { CancelBookingDto, CreateBookingDto } from './booking.dto';
@@ -60,20 +61,9 @@ export class BookingController {
     return successResponse(booking);
   }
 
-  // 從 Cookie header 解析 session token，讓會員 API 不依賴前端傳入 userId。
+  // 會員 Booking API 僅讀 booking_member_session，與後台 admin cookie 分離。
   private readSessionToken(request: Request): string | undefined {
-    const cookieHeader = request.headers.cookie;
-
-    if (!cookieHeader) {
-      return undefined;
-    }
-
-    const cookie = cookieHeader
-      .split(';')
-      .map((item) => item.trim())
-      .find((item) => item.startsWith(`${this.authService.getSessionCookieName()}=`));
-
-    return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : undefined;
+    return readSessionTokenFromRequest(request, this.authService.getSessionCookieName('member'));
   }
 
   // 將分頁 query 轉成正整數，無效值交由 service 套用保守預設值。
