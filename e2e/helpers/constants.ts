@@ -1,4 +1,5 @@
 export const API_BASE_URL = process.env.API_BASE_URL ?? 'http://127.0.0.1:3001';
+export const WEB_BASE_URL = process.env.WEB_BASE_URL ?? 'http://127.0.0.1:3000';
 export const MEMBER_SESSION_COOKIE_NAME = 'booking_member_session';
 export const ADMIN_SESSION_COOKIE_NAME = 'booking_admin_session';
 export const DEFAULT_PASSWORD = 'password123';

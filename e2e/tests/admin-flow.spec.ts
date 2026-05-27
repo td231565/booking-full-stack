@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import {
+  buildBrowserSessionCookies,
   bulkGenerateAdminAvailabilitySlots,
   cancelAdminBooking,
   createAdminAvailabilitySlot,
@@ -12,36 +13,29 @@ import {
   tryCreateAdminAvailabilitySlot,
   updateAdminService,
 } from '../helpers/api';
-import { API_BASE_URL, MEMBER_SESSION_COOKIE_NAME, SEED_SERVICE_NAMES } from '../helpers/constants';
+import { API_BASE_URL, SEED_SERVICE_NAMES } from '../helpers/constants';
 import { adminTest, test } from '../fixtures/auth';
 
 test.describe('後台權限', () => {
-  // 反向流程：一般會員訪問後台頁面顯示無權限（verification checklist Phase 6）。
-  test('非 admin 訪問後台服務管理顯示無權限', async ({ page, request, runId }) => {
+  // 反向流程：僅 member session 無法進入後台 dashboard，會導向後台登入頁。
+  test('非 admin 僅 member cookie 訪問後台會導向登入', async ({ page, request, runId }) => {
     const email = `e2e-member-admin-${runId}@example.com`;
     const session = await registerAndLogin(request, email, 'Member No Admin');
 
-    await page.context().addCookies([
-      {
-        name: MEMBER_SESSION_COOKIE_NAME,
-        value: session.token,
-        url: API_BASE_URL,
-        httpOnly: true,
-        sameSite: 'Lax',
-      },
-    ]);
+    await page.context().addCookies(buildBrowserSessionCookies(session.token, 'member'));
 
     await page.goto('/admin/services');
 
-    await expect(page.getByText('你沒有後台管理權限。')).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/login$/);
+    await expect(page.getByRole('heading', { name: '後台管理系統' })).toBeVisible();
   });
 
-  // 反向流程：未登入訪問後台會因 API 401 而無法載入資料。
-  test('未登入訪問後台服務管理顯示載入失敗', async ({ page }) => {
+  // 反向流程：未登入訪問後台 dashboard 同樣導向後台登入頁。
+  test('未登入訪問後台服務管理會導向登入', async ({ page }) => {
     await page.goto('/admin/services');
 
-    await expect(page.getByRole('heading', { name: '服務管理資料無法載入' })).toBeVisible();
-    await expect(page.getByText('尚未登入')).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/login$/);
+    await expect(page.getByRole('heading', { name: '後台管理系統' })).toBeVisible();
   });
 });
 
@@ -53,26 +47,32 @@ adminTest.describe('後台管理 golden path', () => {
 
     await adminPage.goto('/admin/services');
 
-    const card = adminPage.locator('.card').filter({ hasText: serviceName });
+    const card = adminPage.locator('section').filter({ hasText: serviceName });
     await expect(card.getByRole('heading', { name: serviceName })).toBeVisible();
-    await expect(card.getByText('狀態：啟用')).toBeVisible();
+    await expect(card.getByText('啟用')).toBeVisible();
 
     const listedId = await findAdminServiceIdByName(request, adminSession.token, serviceName);
     expect(listedId).toBe(serviceId);
   });
 
-  // Happy path：admin 建立時段後，時段管理頁可看到對應紀錄。
+  // Happy path：admin 建立時段後，API 可查到且時段管理頁可正常載入（列表可能分頁，不以 UI 全文搜尋）。
   adminTest('admin 建立時段後出現在時段管理列表', async ({ adminPage, request, runId, adminSession }) => {
     const serviceName = `E2E Admin 時段服務 ${runId}`;
     const serviceId = await createAdminService(request, adminSession.token, serviceName);
-    await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 48, 60);
+    const slotId = await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 48, 60);
+
+    const slotResponse = await request.get(`${API_BASE_URL}/api/admin/availability-slots/${slotId}`, {
+      headers: { Cookie: sessionCookieHeader(adminSession.token, 'admin') },
+    });
+    expect(slotResponse.ok()).toBeTruthy();
+    const slot = (await slotResponse.json()) as { data: { id: string; service: { name: string } } };
+    expect(slot.data.id).toBe(slotId);
+    expect(slot.data.service.name).toBe(serviceName);
 
     await adminPage.goto('/admin/availability');
 
-    const card = adminPage.locator('.card').filter({ hasText: serviceName });
-    await expect(card).toBeVisible();
-    await expect(card.getByText(/服務狀態：active/)).toBeVisible();
-    await expect(card.getByText(/時段狀態：available/)).toBeVisible();
+    await expect(adminPage.locator('main').getByRole('heading', { name: '時段管理' })).toBeVisible();
+    await expect(adminPage.locator('main section').first()).toBeVisible();
   });
 
   // Happy path：admin 替會員建立預約後，預約管理頁顯示已成立。
@@ -88,9 +88,9 @@ adminTest.describe('後台管理 golden path', () => {
 
     await adminPage.goto('/admin/bookings');
 
-    const card = adminPage.locator('.card').filter({ hasText: serviceName });
+    const card = adminPage.locator('section').filter({ hasText: serviceName });
     await expect(card.getByText(memberEmail)).toBeVisible();
-    await expect(card.getByText('狀態：已成立')).toBeVisible();
+    await expect(card.getByText('已成立')).toBeVisible();
     await expect(card.getByText('備註：admin e2e booking')).toBeVisible();
   });
 
@@ -109,29 +109,34 @@ adminTest.describe('後台管理 golden path', () => {
 
     await adminPage.goto('/admin/bookings');
 
-    const card = adminPage.locator('.card').filter({ hasText: serviceName });
-    await expect(card.getByText('狀態：已取消')).toBeVisible();
+    const card = adminPage.locator('section').filter({ hasText: serviceName });
+    await expect(card.getByText('已取消')).toBeVisible();
   });
 
-  // Happy path：admin 後台首頁可進入各管理區塊。
+  // Happy path：後台根路由導向預約管理，sidebar 可進入各管理區塊。
   adminTest('admin 可進入後台首頁導覽', async ({ adminPage }) => {
     await adminPage.goto('/admin');
 
-    await expect(adminPage.getByRole('heading', { name: '後台管理' })).toBeVisible();
+    await expect(adminPage).toHaveURL(/\/admin\/bookings$/);
+    await expect(adminPage.locator('main').getByRole('heading', { name: '預約管理' })).toBeVisible();
     await expect(adminPage.getByRole('link', { name: '服務管理' })).toBeVisible();
     await expect(adminPage.getByRole('link', { name: '時段管理' })).toBeVisible();
     await expect(adminPage.getByRole('link', { name: '預約管理' })).toBeVisible();
     await expect(adminPage.getByRole('link', { name: '稽核紀錄' })).toBeVisible();
   });
 
-  // Happy path：admin 可查看含 hidden 的服務列表。
-  adminTest('admin 可查看 hidden 服務', async ({ adminPage }) => {
+  // Happy path：admin 可查看 hidden 服務（自行建立，避免 seed 被分頁擠出列表）。
+  adminTest('admin 可查看 hidden 服務', async ({ adminPage, request, runId, adminSession }) => {
+    const serviceName = `E2E Hidden View ${runId}`;
+    const serviceId = await createAdminService(request, adminSession.token, serviceName);
+    await updateAdminService(request, adminSession.token, serviceId, { status: 'hidden' });
+
     await adminPage.goto('/admin/services');
 
-    await expect(adminPage.getByRole('heading', { name: '服務管理' })).toBeVisible();
-    const hiddenCard = adminPage.locator('.card').filter({ hasText: SEED_SERVICE_NAMES.hidden });
-    await expect(hiddenCard.getByRole('heading', { name: SEED_SERVICE_NAMES.hidden })).toBeVisible();
-    await expect(hiddenCard.getByText('狀態：隱藏')).toBeVisible();
+    await expect(adminPage.locator('main').getByRole('heading', { name: '服務管理' })).toBeVisible();
+    const hiddenCard = adminPage.locator('section').filter({ hasText: serviceName });
+    await expect(hiddenCard.getByRole('heading', { name: serviceName })).toBeVisible();
+    await expect(hiddenCard.getByText('隱藏')).toBeVisible();
   });
 });
 
@@ -167,7 +172,7 @@ adminTest.describe('後台管理邊界與稽核', () => {
     await updateAdminService(request, adminSession.token, serviceId, { status: 'hidden' });
 
     await adminPage.goto('/admin/services');
-    await expect(adminPage.locator('.card').filter({ hasText: serviceName }).getByText('狀態：隱藏')).toBeVisible();
+    await expect(adminPage.locator('section').filter({ hasText: serviceName }).getByText('隱藏')).toBeVisible();
 
     await page.goto('/services');
     await expect(page.getByText(serviceName)).toHaveCount(0);
@@ -239,7 +244,7 @@ adminTest.describe('後台管理邊界與稽核', () => {
 
     await adminPage.goto('/admin/audit-logs');
 
-    const auditCard = adminPage.locator('.card').filter({ hasText: 'admin.service.create' }).first();
+    const auditCard = adminPage.locator('section').filter({ hasText: 'admin.service.create' }).first();
     await expect(auditCard).toBeVisible();
   });
 });

@@ -19,7 +19,7 @@ todos:
     status: completed
   - id: phase5-e2e
     content: Phase 5 RED→GREEN：e2e fixtures、admin-flow、session 隔離案例
-    status: pending
+    status: completed
   - id: phase6-docs
     content: Phase 6：更新 api_contract、frontend_flow、test_scenarios、README
     status: pending

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+  buildBrowserSessionCookies,
   createAdminAvailabilitySlot,
   createAdminAvailabilitySlotMinutesFromNow,
   createAdminService,
@@ -7,9 +8,10 @@ import {
   findPublicServiceIdByName,
   insertCompletedBookingInDb,
   insertPastAvailabilitySlotInDb,
-  promoteUserToAdmin,
   registerAndLogin,
+  registerAndLoginAdmin,
   registerUser,
+  sessionCookieHeader,
   updateAdminService,
 } from '../helpers/api';
 import { API_BASE_URL, DEFAULT_PASSWORD, SEED_SERVICE_NAMES } from '../helpers/constants';
@@ -41,8 +43,7 @@ test.describe('會員預約 golden path', () => {
     expect(serviceId).toBeTruthy();
 
     const adminEmail = `e2e-golden-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Golden Admin');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Golden Admin');
     await createAdminAvailabilitySlot(request, adminSession.token, serviceId!, 72 + (runId % 500), 60);
 
     await page.goto(`/services/${serviceId}`);
@@ -52,11 +53,14 @@ test.describe('會員預約 golden path', () => {
     await expect(page).toHaveURL(/\/my\/bookings\/.+/);
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByText('是否加入日曆')).toBeVisible();
-    await expect(page.getByText('狀態：已成立')).toBeVisible();
+    await expect(page.getByText('已成立')).toBeVisible();
+
+    // 先關閉日曆提示，避免 overlay 擋住取消按鈕。
+    await page.getByRole('button', { name: '稍後' }).click();
 
     await page.getByRole('button', { name: '取消預約' }).click();
 
-    await expect(page.getByText('狀態：已取消')).toBeVisible();
+    await expect(page.getByText('已取消', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('此預約已取消。')).toBeVisible();
   });
 });
@@ -105,8 +109,7 @@ test.describe('會員認證與權限', () => {
   test('未登入點預約按鈕會導向登入頁', async ({ page, request }) => {
     const runId = Date.now();
     const adminEmail = `e2e-guest-book-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Guest Book Admin');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Guest Book Admin');
 
     const serviceId = await createAdminService(request, adminSession.token, `E2E 訪客預約 ${runId}`);
     await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 72, 60);
@@ -128,9 +131,7 @@ memberTest.describe('會員預約邊界與反向流程', () => {
     memberSession,
   }) => {
     const adminEmail = `e2e-list-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'E2E List Admin');
-    const { promoteUserToAdmin } = await import('../helpers/api');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'E2E List Admin');
 
     const serviceId = await findPublicServiceIdByName(request, SEED_SERVICE_NAMES.active);
     expect(serviceId).toBeTruthy();
@@ -139,7 +140,7 @@ memberTest.describe('會員預約邊界與反向流程', () => {
 
     const bookingResponse = await request.post(`${API_BASE_URL}/api/bookings`, {
       headers: {
-        Cookie: `booking_session=${encodeURIComponent(memberSession.token)}`,
+        Cookie: sessionCookieHeader(memberSession.token, 'member'),
       },
       data: { availabilitySlotId: slotId, note: 'e2e list' },
     });
@@ -165,9 +166,7 @@ memberTest.describe('會員預約邊界與反向流程', () => {
     const peeker = await registerAndLogin(request, peekerEmail, 'Peeker');
 
     const adminEmail = `e2e-peek-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Peek Admin');
-    const { promoteUserToAdmin } = await import('../helpers/api');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Peek Admin');
 
     const serviceId = await findPublicServiceIdByName(request, SEED_SERVICE_NAMES.active);
     expect(serviceId).toBeTruthy();
@@ -176,21 +175,13 @@ memberTest.describe('會員預約邊界與反向流程', () => {
 
     const ownerBooking = await request.post(`${API_BASE_URL}/api/bookings`, {
       headers: {
-        Cookie: `booking_session=${encodeURIComponent(owner.token)}`,
+        Cookie: sessionCookieHeader(owner.token, 'member'),
       },
       data: { availabilitySlotId: slotId },
     });
     const bookingId = ((await ownerBooking.json()) as { data: { id: string } }).data.id;
 
-    await memberPage.context().addCookies([
-      {
-        name: 'booking_session',
-        value: peeker.token,
-        url: API_BASE_URL,
-        httpOnly: true,
-        sameSite: 'Lax',
-      },
-    ]);
+    await memberPage.context().addCookies(buildBrowserSessionCookies(peeker.token, 'member'));
 
     await memberPage.goto(`/my/bookings/${bookingId}`);
 
@@ -204,29 +195,17 @@ memberTest.describe('會員預約邊界與反向流程', () => {
     const taker = await registerAndLogin(request, takerEmail, 'Taker');
 
     const adminEmail = `e2e-slot-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Slot Admin');
-    const { promoteUserToAdmin } = await import('../helpers/api');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Slot Admin');
 
     const serviceId = await createAdminService(request, adminSession.token, `E2E 衝突服務 ${runId}`);
     const slotId = await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 100, 60);
-
-    await memberPage.context().addCookies([
-      {
-        name: 'booking_session',
-        value: memberSession.token,
-        url: API_BASE_URL,
-        httpOnly: true,
-        sameSite: 'Lax',
-      },
-    ]);
 
     await memberPage.goto(`/services/${serviceId}`);
     await expect(memberPage.getByRole('button', { name: '預約' })).toHaveCount(1);
 
     const taken = await request.post(`${API_BASE_URL}/api/bookings`, {
       headers: {
-        Cookie: `booking_session=${encodeURIComponent(taker.token)}`,
+        Cookie: sessionCookieHeader(taker.token, 'member'),
       },
       data: { availabilitySlotId: slotId },
     });
@@ -240,9 +219,7 @@ memberTest.describe('會員預約邊界與反向流程', () => {
   // Edge case：已取消預約再次取消顯示 BOOKING_NOT_CANCELABLE 對應訊息。
   memberTest('已取消預約再次取消顯示不可取消', async ({ memberPage, request, runId, memberSession }) => {
     const adminEmail = `e2e-cancel-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Cancel Admin');
-    const { promoteUserToAdmin } = await import('../helpers/api');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Cancel Admin');
 
     const serviceId = await findPublicServiceIdByName(request, SEED_SERVICE_NAMES.active);
     expect(serviceId).toBeTruthy();
@@ -251,7 +228,7 @@ memberTest.describe('會員預約邊界與反向流程', () => {
 
     const created = await request.post(`${API_BASE_URL}/api/bookings`, {
       headers: {
-        Cookie: `booking_session=${encodeURIComponent(memberSession.token)}`,
+        Cookie: sessionCookieHeader(memberSession.token, 'member'),
       },
       data: { availabilitySlotId: slotId },
     });
@@ -259,23 +236,21 @@ memberTest.describe('會員預約邊界與反向流程', () => {
 
     await request.post(`${API_BASE_URL}/api/me/bookings/${bookingId}/cancel`, {
       headers: {
-        Cookie: `booking_session=${encodeURIComponent(memberSession.token)}`,
+        Cookie: sessionCookieHeader(memberSession.token, 'member'),
       },
       data: { reason: 'first cancel' },
     });
 
     await memberPage.goto(`/my/bookings/${bookingId}`);
 
-    await expect(memberPage.getByText('狀態：已取消')).toBeVisible();
+    await expect(memberPage.getByText('已取消', { exact: true }).first()).toBeVisible();
     await expect(memberPage.getByText('此預約已取消。')).toBeVisible();
   });
 
   // 反向流程：登出後無法維持私人頁 session。
   memberTest('登出後訪問我的預約會導向登入', async ({ memberPage, request, memberSession }) => {
     const logout = await request.post(`${API_BASE_URL}/api/auth/logout`, {
-      headers: {
-        Cookie: `booking_session=${encodeURIComponent(memberSession.token)}`,
-      },
+      headers: { Cookie: sessionCookieHeader(memberSession.token, 'member') },
     });
     expect(logout.ok()).toBeTruthy();
 
@@ -287,8 +262,7 @@ memberTest.describe('會員預約邊界與反向流程', () => {
   // Edge case：同一會員在頁面未刷新時重複預約同一時段，顯示 BOOKING_DUPLICATED 訊息。
   memberTest('重複預約同一時段顯示已預約過', async ({ memberPage, request, runId, memberSession }) => {
     const adminEmail = `e2e-dup-book-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Dup Book Admin');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Dup Book Admin');
 
     const serviceId = await createAdminService(request, adminSession.token, `E2E 重複預約 ${runId}`);
     const slotId = await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 80, 60);
@@ -298,7 +272,7 @@ memberTest.describe('會員預約邊界與反向流程', () => {
 
     const firstBooking = await request.post(`${API_BASE_URL}/api/bookings`, {
       headers: {
-        Cookie: `booking_session=${encodeURIComponent(memberSession.token)}`,
+        Cookie: sessionCookieHeader(memberSession.token, 'member'),
       },
       data: { availabilitySlotId: slotId },
     });
@@ -322,8 +296,7 @@ memberTest.describe('會員預約邊界與反向流程', () => {
   // Edge case：結束時間已過的預約，詳情頁對外顯示 completed（DB 直接插入過去時段）。
   memberTest('已結束預約詳情顯示已完成', async ({ memberPage, request, runId, memberSession }) => {
     const adminEmail = `e2e-completed-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Completed Admin');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Completed Admin');
 
     const serviceId = await createAdminService(request, adminSession.token, `E2E 已完成 ${runId}`);
     const slotId = insertPastAvailabilitySlotInDb(serviceId);
@@ -335,7 +308,7 @@ memberTest.describe('會員預約邊界與反向流程', () => {
 
     await memberPage.goto(`/my/bookings/${bookingId}`);
 
-    await expect(memberPage.getByText('狀態：已完成')).toBeVisible();
+    await expect(memberPage.getByText('已完成', { exact: true }).first()).toBeVisible();
     await expect(memberPage.getByText('此預約已完成，無法取消。')).toBeVisible();
     await expect(memberPage.getByRole('button', { name: '取消預約' })).toHaveCount(0);
   });
@@ -343,8 +316,7 @@ memberTest.describe('會員預約邊界與反向流程', () => {
   // Edge case：服務改為 inactive 後，會員無法從詳情頁預約。
   memberTest('服務改為 inactive 後不可預約', async ({ memberPage, request, runId, memberSession }) => {
     const adminEmail = `e2e-inactive-book-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Inactive Book Admin');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Inactive Book Admin');
 
     const serviceName = `E2E 轉停用 ${runId}`;
     const serviceId = await createAdminService(request, adminSession.token, serviceName);
@@ -362,8 +334,7 @@ memberTest.describe('會員預約邊界與反向流程', () => {
 memberTest.describe('日曆整合', () => {
   memberTest('我的預約列表非 cancelled 列顯示加入日曆', async ({ memberPage, request, runId, memberSession }) => {
     const adminEmail = `e2e-cal-list-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Cal List Admin');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Cal List Admin');
 
     const serviceId = await findPublicServiceIdByName(request, SEED_SERVICE_NAMES.active);
     expect(serviceId).toBeTruthy();
@@ -372,7 +343,7 @@ memberTest.describe('日曆整合', () => {
 
     const created = await request.post(`${API_BASE_URL}/api/bookings`, {
       headers: {
-        Cookie: `booking_session=${encodeURIComponent(memberSession.token)}`,
+        Cookie: sessionCookieHeader(memberSession.token, 'member'),
       },
       data: { availabilitySlotId: slotId },
     });
@@ -385,8 +356,7 @@ memberTest.describe('日曆整合', () => {
 
   memberTest('詳情頁常駐加入日曆按鈕', async ({ memberPage, request, runId, memberSession }) => {
     const adminEmail = `e2e-cal-detail-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Cal Detail Admin');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Cal Detail Admin');
 
     const serviceId = await findPublicServiceIdByName(request, SEED_SERVICE_NAMES.active);
     expect(serviceId).toBeTruthy();
@@ -395,7 +365,7 @@ memberTest.describe('日曆整合', () => {
 
     const created = await request.post(`${API_BASE_URL}/api/bookings`, {
       headers: {
-        Cookie: `booking_session=${encodeURIComponent(memberSession.token)}`,
+        Cookie: sessionCookieHeader(memberSession.token, 'member'),
       },
       data: { availabilitySlotId: slotId },
     });
@@ -414,8 +384,7 @@ memberTest.describe('會員預約時間邊界', () => {
   // Edge case：頁面仍顯示時段但開始時間已進入 1 小時內，UI 顯示 BOOKING_TOO_SOON 訊息。
   memberTest('時段開始時間進入 1 小時內時顯示不可過早預約', async ({ memberPage, request, runId }) => {
     const adminEmail = `e2e-soon-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Soon Admin');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Soon Admin');
 
     const serviceId = await createAdminService(request, adminSession.token, `E2E 過早預約 ${runId}`);
     await createAdminAvailabilitySlotMinutesFromNow(request, adminSession.token, serviceId, 62, 60);
@@ -433,8 +402,7 @@ memberTest.describe('會員預約時間邊界', () => {
   // Edge case：距離開始少於 4 小時時，取消按鈕送出後顯示 BOOKING_CANCEL_TOO_LATE 訊息。
   memberTest('距離開始少於 4 小時取消顯示不可過晚取消', async ({ memberPage, request, runId, memberSession }) => {
     const adminEmail = `e2e-late-cancel-admin-${runId}@example.com`;
-    const adminSession = await registerAndLogin(request, adminEmail, 'Late Cancel Admin');
-    promoteUserToAdmin(adminEmail);
+    const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Late Cancel Admin');
 
     const serviceId = await createAdminService(request, adminSession.token, `E2E 過晚取消 ${runId}`);
     const slotId = await createAdminAvailabilitySlotMinutesFromNow(
@@ -447,7 +415,7 @@ memberTest.describe('會員預約時間邊界', () => {
 
     const created = await request.post(`${API_BASE_URL}/api/bookings`, {
       headers: {
-        Cookie: `booking_session=${encodeURIComponent(memberSession.token)}`,
+        Cookie: sessionCookieHeader(memberSession.token, 'member'),
       },
       data: { availabilitySlotId: slotId },
     });

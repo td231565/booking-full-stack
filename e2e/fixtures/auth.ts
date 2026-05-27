@@ -4,6 +4,7 @@ import {
   ADMIN_SESSION_COOKIE_NAME,
   API_BASE_URL,
   MEMBER_SESSION_COOKIE_NAME,
+  WEB_BASE_URL,
 } from '../helpers/constants';
 
 type RunIdFixture = {
@@ -24,7 +25,7 @@ type AdminAuthFixtures = {
 
 type SessionAudience = 'member' | 'admin';
 
-// 將 API session cookie 注入瀏覽器，讓前端 cross-origin fetch 能帶 credentials。
+// 將 session cookie 注入 API 與 Web 網域，讓 SSR layout 與 cross-origin fetch 皆能帶入 session。
 async function applySessionCookie(
   context: BrowserContext,
   token: string,
@@ -32,15 +33,16 @@ async function applySessionCookie(
 ): Promise<void> {
   const cookieName =
     audience === 'admin' ? ADMIN_SESSION_COOKIE_NAME : MEMBER_SESSION_COOKIE_NAME;
+  const cookie = {
+    name: cookieName,
+    value: token,
+    httpOnly: true,
+    sameSite: 'Lax' as const,
+  };
 
   await context.addCookies([
-    {
-      name: cookieName,
-      value: token,
-      url: API_BASE_URL,
-      httpOnly: true,
-      sameSite: 'Lax',
-    },
+    { ...cookie, url: API_BASE_URL },
+    { ...cookie, url: WEB_BASE_URL },
   ]);
 }
 

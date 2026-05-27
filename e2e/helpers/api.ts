@@ -6,6 +6,7 @@ import {
   DEFAULT_PASSWORD,
   MEMBER_SESSION_COOKIE_NAME,
   SEED_SERVICE_NAMES,
+  WEB_BASE_URL,
 } from './constants';
 
 type SessionAudience = 'member' | 'admin';
@@ -85,6 +86,30 @@ function getSessionCookieName(audience: SessionAudience): string {
 // 將 session token 組成 Cookie header，供 Playwright API 請求帶入。
 export function sessionCookieHeader(token: string, audience: SessionAudience = 'member'): string {
   return `${getSessionCookieName(audience)}=${encodeURIComponent(token)}`;
+}
+
+// 產生 Playwright addCookies 用的 cookie 定義（同時寫入 API 與 Web 網域）。
+export function buildBrowserSessionCookies(
+  token: string,
+  audience: SessionAudience = 'member',
+): Array<{
+  name: string;
+  value: string;
+  url: string;
+  httpOnly: boolean;
+  sameSite: 'Lax';
+}> {
+  const cookie = {
+    name: getSessionCookieName(audience),
+    value: token,
+    httpOnly: true,
+    sameSite: 'Lax' as const,
+  };
+
+  return [
+    { ...cookie, url: API_BASE_URL },
+    { ...cookie, url: WEB_BASE_URL },
+  ];
 }
 
 // 從 login 回應解析指定 audience 的 session cookie，供瀏覽器 context 帶入跨域 API 請求。
