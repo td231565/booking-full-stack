@@ -7,7 +7,7 @@ import { Form, FormError, FormField, TextInput } from '@/components/ui/form';
 import { ApiClientError, ApiSuccessResponse, apiFetch } from '@/lib/api/client';
 import { CurrentUser } from '@/lib/auth/get-current-user';
 
-// 顯示後台登入表單，登入成功且角色為 admin 才導向預約管理。
+// 顯示後台登入表單，成功後導向預約管理（後端已驗證 admin 角色）。
 export function AdminLoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -15,27 +15,17 @@ export function AdminLoginForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 送出登入並驗證 admin 角色，非 admin 立即登出避免誤用 session。
+  // 送出後台登入，session 寫入 booking_admin_session。
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage(null);
     setIsSubmitting(true);
 
     try {
-      await apiFetch<ApiSuccessResponse<CurrentUser>>('/api/auth/login', {
+      await apiFetch<ApiSuccessResponse<CurrentUser>>('/api/admin/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-
-      const meResponse = await apiFetch<ApiSuccessResponse<CurrentUser>>('/api/auth/me', {
-        cache: 'no-store',
-      });
-
-      if (meResponse.data.role !== 'admin') {
-        await apiFetch('/api/auth/logout', { method: 'POST' });
-        setErrorMessage('此帳號無後台管理權限。');
-        return;
-      }
 
       router.push('/admin/bookings');
       router.refresh();
@@ -78,6 +68,10 @@ function getLoginErrorMessage(error: unknown): string {
 
     if (error.code === 'USER_DISABLED') {
       return '此帳號已停用。';
+    }
+
+    if (error.code === 'FORBIDDEN') {
+      return '此帳號無後台管理權限。';
     }
 
     if (error.code === 'RATE_LIMITED') {

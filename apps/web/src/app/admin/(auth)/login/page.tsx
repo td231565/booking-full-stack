@@ -1,15 +1,15 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { AdminLoginForm } from './admin-login-form';
-import { getCurrentUserFromCookieHeader } from '@/lib/auth/get-current-user';
+import { getCurrentAdminUserFromCookieHeader } from '@/lib/auth/get-current-user';
 
 export const dynamic = 'force-dynamic';
 
 // 顯示後台專用登入頁，已登入 admin 直接導向預約管理。
 export default async function AdminLoginPage() {
-  const user = await getCurrentUserFromCookieHeader((await cookies()).toString());
+  const user = await getCurrentAdminUserFromCookieHeader((await cookies()).toString());
 
-  if (user?.role === 'admin') {
+  if (user) {
     redirect('/admin/bookings');
   }
 

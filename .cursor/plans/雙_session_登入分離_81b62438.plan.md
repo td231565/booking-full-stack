@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: phase4-web-tests
     content: Phase 4 RED→GREEN：admin-login-form / get-current-user 前端測試與元件
-    status: pending
+    status: completed
   - id: phase5-e2e
     content: Phase 5 RED→GREEN：e2e fixtures、admin-flow、session 隔離案例
     status: pending

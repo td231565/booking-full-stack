@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { AdminLogoutButton } from '@/components/admin/admin-logout-button';
 import { AdminSidebarNav } from '@/components/admin/admin-sidebar-nav';
 import { AdminStatusBar } from '@/components/admin/admin-status-bar';
-import { CurrentUser, getCurrentUserFromCookieHeader } from '@/lib/auth/get-current-user';
+import { CurrentUser, getCurrentAdminUserFromCookieHeader } from '@/lib/auth/get-current-user';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +14,7 @@ type AdminDashboardLayoutProps = {
 
 // 建立後台 dashboard 版面，含 sidebar、status bar 與 admin 權限檢查。
 export default async function AdminDashboardLayout({ children }: AdminDashboardLayoutProps) {
-  const user = await getCurrentUserFromCookieHeader((await cookies()).toString());
+  const user = await getCurrentAdminUserFromCookieHeader((await cookies()).toString());
 
   if (!user || user.role !== 'admin') {
     redirect('/admin/login');

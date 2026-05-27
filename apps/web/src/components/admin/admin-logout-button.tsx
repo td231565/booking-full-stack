@@ -14,7 +14,7 @@ export function AdminLogoutButton() {
     setIsSubmitting(true);
 
     try {
-      await apiFetch('/api/auth/logout', { method: 'POST' });
+      await apiFetch('/api/admin/auth/logout', { method: 'POST' });
       router.push('/admin/login');
       router.refresh();
     } finally {

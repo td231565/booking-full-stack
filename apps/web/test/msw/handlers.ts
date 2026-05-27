@@ -37,6 +37,31 @@ export const handlers = [
       },
     });
   }),
+  http.post(`${API_BASE_URL}/api/admin/auth/login`, () => {
+    return HttpResponse.json({
+      data: {
+        id: 'admin-1',
+        email: 'admin@example.com',
+        displayName: '測試管理員',
+        role: 'admin',
+        status: 'active',
+      },
+    });
+  }),
+  http.get(`${API_BASE_URL}/api/admin/auth/me`, () => {
+    return HttpResponse.json({
+      data: {
+        id: 'admin-1',
+        email: 'admin@example.com',
+        displayName: '測試管理員',
+        role: 'admin',
+        status: 'active',
+      },
+    });
+  }),
+  http.post(`${API_BASE_URL}/api/admin/auth/logout`, () => {
+    return HttpResponse.json({ data: {} });
+  }),
   http.post(`${API_BASE_URL}/api/bookings`, () => {
     return HttpResponse.json({
       data: {
