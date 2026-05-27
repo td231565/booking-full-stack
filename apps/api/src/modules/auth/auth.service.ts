@@ -4,13 +4,18 @@ import * as argon2 from 'argon2';
 import { ApiException } from '../../common/api-exception';
 import { AuthRepository, PublicUserRecord } from './auth.repository';
 
+export type SessionAudience = 'member' | 'admin';
+
 export type LoginResult = {
   user: PublicUserRecord;
   sessionToken: string;
   expiresAt: Date;
 };
 
-const SESSION_COOKIE_NAME = 'booking_session';
+const SESSION_COOKIE_NAMES: Record<SessionAudience, string> = {
+  member: 'booking_member_session',
+  admin: 'booking_admin_session',
+};
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 @Injectable()
@@ -35,8 +40,8 @@ export class AuthService {
     }
   }
 
-  // 驗證帳密並建立 server-side session，回傳明文 token 只用於 Set-Cookie。
-  async login(email: string, password: string): Promise<LoginResult> {
+  // 驗證帳密並建立 server-side session；admin audience 僅允許 role=admin。
+  async login(email: string, password: string, audience: SessionAudience = 'member'): Promise<LoginResult> {
     const user = await this.authRepository.findUserWithPasswordByEmail(email.trim().toLowerCase());
 
     if (!user) {
@@ -53,6 +58,11 @@ export class AuthService {
       throw new ApiException(401, 'INVALID_CREDENTIALS', '帳號或密碼錯誤');
     }
 
+    // 後台登入需額外檢查角色，避免一般會員取得 admin cookie。
+    if (audience === 'admin' && user.role !== 'admin') {
+      throw new ApiException(403, 'FORBIDDEN', '權限不足');
+    }
+
     const sessionToken = randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
 
@@ -65,8 +75,16 @@ export class AuthService {
     };
   }
 
+  // 後台專用登入，內建 admin audience 與角色檢查。
+  async loginAsAdmin(email: string, password: string): Promise<LoginResult> {
+    return this.login(email, password, 'admin');
+  }
+
   // 依 cookie token 查詢目前登入者，未登入或 session 失效時回傳 UNAUTHENTICATED。
-  async getCurrentUser(sessionToken: string | undefined): Promise<PublicUserRecord> {
+  async getCurrentUser(
+    sessionToken: string | undefined,
+    _audience: SessionAudience = 'member',
+  ): Promise<PublicUserRecord> {
     if (!sessionToken) {
       throw new ApiException(401, 'UNAUTHENTICATED', '尚未登入');
     }
@@ -81,7 +99,7 @@ export class AuthService {
   }
 
   // 登出時撤銷目前 session；沒有 cookie 時也回成功以維持 logout 冪等。
-  async logout(sessionToken: string | undefined): Promise<void> {
+  async logout(sessionToken: string | undefined, _audience: SessionAudience = 'member'): Promise<void> {
     if (!sessionToken) {
       return;
     }
@@ -89,9 +107,9 @@ export class AuthService {
     await this.authRepository.revokeSession(this.hashSessionToken(sessionToken));
   }
 
-  // 回傳 cookie 名稱，controller 與 guard 共用同一個 session cookie key。
-  getSessionCookieName(): string {
-    return SESSION_COOKIE_NAME;
+  // 依 audience 回傳 cookie 名稱，前台與後台使用不同 HttpOnly cookie。
+  getSessionCookieName(audience: SessionAudience = 'member'): string {
+    return SESSION_COOKIE_NAMES[audience];
   }
 
   // 將 session token 雜湊成固定長度字串，避免 DB 保存可直接使用的 token。

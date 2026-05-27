@@ -204,4 +204,114 @@ describe('AuthService', () => {
 
     expect(authRepository.revokeSession).not.toHaveBeenCalled();
   });
+
+  // SVC-01：會員 cookie 名稱。
+  it('getSessionCookieName(member) 回傳 booking_member_session', () => {
+    expect(authService.getSessionCookieName('member')).toBe('booking_member_session');
+  });
+
+  // SVC-02：後台 cookie 名稱。
+  it('getSessionCookieName(admin) 回傳 booking_admin_session', () => {
+    expect(authService.getSessionCookieName('admin')).toBe('booking_admin_session');
+  });
+
+  // SVC-03：明確以 member audience 登入時仍建立 session。
+  it('login 以 member audience 成功時建立 session', async () => {
+    const password = 'password123';
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    const user = buildPublicUser();
+
+    authRepository.findUserWithPasswordByEmail.mockResolvedValue({
+      ...user,
+      passwordHash,
+    });
+    authRepository.createSession.mockResolvedValue(undefined);
+
+    const result = await authService.login(user.email, password, 'member');
+
+    expect(result.user).toEqual(user);
+    expect(authRepository.createSession).toHaveBeenCalledWith(
+      user.id,
+      createHash('sha256').update(result.sessionToken).digest('hex'),
+      result.expiresAt,
+    );
+  });
+
+  // SVC-04：後台登入僅允許 admin 角色。
+  it('loginAsAdmin 在 role=user 時拋出 FORBIDDEN', async () => {
+    const password = 'password123';
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+
+    authRepository.findUserWithPasswordByEmail.mockResolvedValue({
+      ...buildPublicUser({ role: 'user' }),
+      passwordHash,
+    });
+
+    await expect(authService.loginAsAdmin('user@example.com', password)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(authRepository.createSession).not.toHaveBeenCalled();
+  });
+
+  // SVC-04：login 以 admin audience 同樣拒絕一般會員。
+  it('login 以 admin audience 在 role=user 時拋出 FORBIDDEN', async () => {
+    const password = 'password123';
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+
+    authRepository.findUserWithPasswordByEmail.mockResolvedValue({
+      ...buildPublicUser({ role: 'user' }),
+      passwordHash,
+    });
+
+    await expect(authService.login('user@example.com', password, 'admin')).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(authRepository.createSession).not.toHaveBeenCalled();
+  });
+
+  // SVC-05：admin 帳號可建立後台 session。
+  it('loginAsAdmin 在 role=admin 時建立 session', async () => {
+    const password = 'password123';
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    const user = buildPublicUser({ role: 'admin' });
+
+    authRepository.findUserWithPasswordByEmail.mockResolvedValue({
+      ...user,
+      passwordHash,
+    });
+    authRepository.createSession.mockResolvedValue(undefined);
+
+    const result = await authService.loginAsAdmin(user.email, password);
+
+    expect(result.user).toEqual(user);
+    expect(result.sessionToken).toBeTruthy();
+    expect(authRepository.createSession).toHaveBeenCalled();
+  });
+
+  // SVC-06：member audience 下有效 token 回傳使用者。
+  it('getCurrentUser 在 member audience 與有效 token 時回傳目前登入者', async () => {
+    const user = buildPublicUser();
+
+    authRepository.findUserByActiveSessionHash.mockResolvedValue(user);
+
+    await expect(authService.getCurrentUser('valid-token', 'member')).resolves.toEqual(user);
+  });
+
+  // SVC-07：admin audience 下無 token 仍視為未登入。
+  it('getCurrentUser 在 admin audience 且無 token 時拋出 UNAUTHENTICATED', async () => {
+    await expect(authService.getCurrentUser(undefined, 'admin')).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+  });
+
+  // SVC-08：member audience 登出只撤銷對應 token hash。
+  it('logout 在 member audience 時撤銷對應 session hash', async () => {
+    const sessionToken = 'member-session-token';
+
+    await authService.logout(sessionToken, 'member');
+
+    expect(authRepository.revokeSession).toHaveBeenCalledWith(
+      createHash('sha256').update(sessionToken).digest('hex'),
+    );
+  });
 });

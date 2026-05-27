@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: phase1-service-unit
     content: Phase 1 RED→GREEN：auth.service audience 單元測試 + AuthService 實作
-    status: pending
+    status: completed
   - id: phase2-member-e2e
     content: Phase 2 RED→GREEN：auth.e2e 會員 cookie + AuthController member only
     status: pending
