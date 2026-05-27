@@ -11,6 +11,7 @@
 - 時間格式使用 ISO 8601
 - DB 儲存 UTC，前端依使用者時區顯示
 - 登入狀態使用 server-side session 搭配 HttpOnly Cookie
+- 前台與後台使用**兩顆獨立 Cookie**（`booking_member_session`、`booking_admin_session`），同一瀏覽器可同時持有會員與後台 session；`sessions` 表不加 `audience` 欄，以不同 cookie 對應不同 session 列
 - 錯誤回應需提供穩定的 `code`，方便前端判斷 UI 狀態
 - 分頁統一使用 `page` 與 `pageSize`
 
@@ -148,6 +149,7 @@ MVP 可先使用記憶體型 rate limit。若部署多個 instance，需改用 R
 | --- | --- | --- | --- |
 | POST /api/auth/register | IP | 每 10 分鐘 5 次 | 回 `429 RATE_LIMITED` |
 | POST /api/auth/login | IP + email | 每 10 分鐘 5 次 | 回 `429 RATE_LIMITED`，不透露帳號是否存在 |
+| POST /api/admin/auth/login | IP + email | 每 10 分鐘 5 次 | 同會員登入規則 |
 | POST /api/bookings | userId | 每分鐘 5 次 | 回 `429 RATE_LIMITED` |
 | POST /api/me/bookings/:bookingId/cancel | userId | 每分鐘 5 次 | 回 `429 RATE_LIMITED` |
 | Public API | IP | 每分鐘 120 次 | 回 `429 RATE_LIMITED` |
@@ -401,11 +403,12 @@ Request body：
 
 規則：
 
-- 登入成功後建立 session
-- Cookie 存 session token
+- 登入成功後建立 **member** session
+- Set-Cookie 名稱為 `booking_member_session`（不寫入 `booking_admin_session`）
 - Cookie 需設定 HttpOnly、Secure、SameSite=Lax
 - DB 只存 `session_token_hash`
 - 錯誤訊息不透露帳號是否存在
+- admin 帳號亦可由此登入取得 member session（用於前台預約）；後台管理須另經 §5.5 後台登入
 
 Response：
 
@@ -437,8 +440,9 @@ POST /api/auth/logout
 
 規則：
 
-- 將目前 session 的 `revoked_at` 設為目前時間
-- 清除 Cookie
+- 僅讀寫 `booking_member_session`
+- 將對應 session 的 `revoked_at` 設為目前時間
+- 清除 member Cookie（不影響 `booking_admin_session`）
 
 Response：
 
@@ -448,11 +452,15 @@ Response：
 }
 ```
 
-### 5.4 取得目前登入者
+### 5.4 取得目前登入者（會員）
 
 ```text
 GET /api/auth/me
 ```
+
+規則：
+
+- 僅接受 `booking_member_session`；僅帶 admin cookie 視為未登入（`401 UNAUTHENTICATED`）
 
 Response：
 
@@ -474,9 +482,69 @@ Response：
 | --- | --- | --- |
 | UNAUTHENTICATED | 401 | 尚未登入 |
 
+### 5.5 後台登入
+
+```text
+POST /api/admin/auth/login
+```
+
+Request body：同 §5.2（`email`、`password`）。
+
+規則：
+
+- 僅 `role = admin` 且 `status = active` 可成功
+- 登入成功後建立 **admin** session，Set-Cookie 為 `booking_admin_session`
+- 不寫入 `booking_member_session`
+- Cookie 屬性同 §5.2
+- 非 admin 帳號回 `403 FORBIDDEN`，且**不** Set admin cookie
+
+Response：同 §5.2（`data` 為 User，通常 `role = admin`）。
+
+可能錯誤：
+
+| code | HTTP | 說明 |
+| --- | --- | --- |
+| INVALID_CREDENTIALS | 401 | 帳號或密碼錯誤 |
+| FORBIDDEN | 403 | 非 admin 帳號 |
+| USER_DISABLED | 403 | 帳號已停用 |
+| RATE_LIMITED | 429 | 登入太頻繁 |
+
+### 5.6 後台登出
+
+```text
+POST /api/admin/auth/logout
+```
+
+規則：
+
+- 僅讀寫 `booking_admin_session`
+- 撤銷對應 admin session 並清除 admin Cookie（不影響 member session）
+
+Response：同 §5.3。
+
+### 5.7 取得目前登入者（後台）
+
+```text
+GET /api/admin/auth/me
+```
+
+規則：
+
+- 僅接受 `booking_admin_session`
+- 須為有效 session 且使用者 `role = admin`
+
+Response：同 §5.4。
+
+可能錯誤：
+
+| code | HTTP | 說明 |
+| --- | --- | --- |
+| UNAUTHENTICATED | 401 | 無有效 admin session |
+| FORBIDDEN | 403 | session 有效但非 admin（異常狀態） |
+
 ## 6. Member API
 
-Member API 需要登入，且只能操作自己的資料。
+Member API 需要有效 **member** session（`booking_member_session`），且只能操作自己的資料。僅帶 admin cookie 視為未登入。
 
 ### 6.1 建立預約
 
@@ -667,7 +735,7 @@ Response：
 
 ## 7. Admin API
 
-Admin API 需要登入且 `role = admin`。
+Admin API 需要有效 **admin** session（`booking_admin_session`）且 `role = admin`。僅帶 member cookie 視為未登入（`401 UNAUTHENTICATED`），即使有 admin 身分的使用者亦須先完成 §5.5 後台登入。
 
 ### 7.1 取得後台服務列表
 
@@ -1184,12 +1252,13 @@ Response：
 
 ## 8. 權限摘要
 
-| API 群組 | 是否登入 | 權限 |
-| --- | --- | --- |
-| Public API | 否 | 訪客可使用 |
-| Auth API | 部分需要 | 註冊、登入不需要；登出、me 需要有效 session |
-| Member API | 是 | 一般會員只能操作自己的資料 |
-| Admin API | 是 | 需要 `role = admin` |
+| API 群組 | 是否登入 | Cookie | 權限 |
+| --- | --- | --- | --- |
+| Public API | 否 | — | 訪客可使用 |
+| Auth API（會員） | 部分需要 | `booking_member_session` | 註冊、會員登入不需要；會員登出、`/api/auth/me` 需要有效 member session |
+| Admin Auth API | 部分需要 | `booking_admin_session` | 後台登入不需要；後台登出、`/api/admin/auth/me` 需要有效 admin session |
+| Member API | 是 | `booking_member_session` | 一般會員只能操作自己的資料 |
+| Admin API | 是 | `booking_admin_session` | 需要 `role = admin` |
 
 ## 9. Rate Limit 建議
 

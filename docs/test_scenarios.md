@@ -222,7 +222,46 @@ booking_completed:           user_a, slot endAt=過去時間, status=confirmed�
 
 ---
 
-### 2.5 ServiceCatalogService — 公開服務列表
+### 2.5 雙 Session 登入分離（前台／後台）
+
+對應整合測試：`apps/api/test/auth.e2e.spec.ts`、`admin-auth.e2e.spec.ts`；E2E：`e2e/tests/session-isolation.spec.ts`。
+
+| 測試 ID | 情境 | 預期 |
+| --- | --- | --- |
+| TC-AUTH-SESSION-01（AUTH-M-01） | `POST /api/auth/login` | Set-Cookie 僅 `booking_member_session` |
+| TC-AUTH-SESSION-02（AUTH-M-02） | `GET /api/auth/me` 帶 member cookie | 200 |
+| TC-AUTH-SESSION-03（AUTH-M-03） | `POST /api/auth/logout` | 清除 member cookie；同 token `/me` → 401 |
+| TC-AUTH-SESSION-04（AUTH-M-04） | `GET /api/auth/me` 僅帶 admin cookie | 401 |
+| TC-AUTH-SESSION-05（AUTH-A-01） | `POST /api/admin/auth/login`（admin） | Set-Cookie 僅 `booking_admin_session` |
+| TC-AUTH-SESSION-06（AUTH-A-02） | `GET /api/admin/auth/me` 帶 admin cookie | 200，`role=admin` |
+| TC-AUTH-SESSION-07（AUTH-A-03） | `POST /api/admin/auth/login`（一般會員） | 403，不 Set admin cookie |
+| TC-AUTH-SESSION-08（AUTH-A-04） | `POST /api/admin/auth/logout` | 僅清 admin；admin `/me` → 401 |
+| TC-AUTH-SESSION-09（AUTH-A-05） | `GET /api/admin/services` 僅 member cookie | 401 |
+| TC-AUTH-SESSION-10（AUTH-A-06） | `GET /api/admin/services` 僅 admin cookie | 200 |
+| TC-AUTH-SESSION-11（AUTH-A-07） | 先 member 再 admin login | 兩 cookie 並存；兩邊 `/me` 皆 200 |
+| TC-AUTH-SESSION-12（AUTH-A-08） | admin logout 後 | member `/me` 仍 200；admin `/me` 401 |
+| TC-AUTH-SESSION-13（AUTH-A-09） | member logout 後 | admin `/me` 仍 200；member `/me` 401 |
+| TC-AUTH-SESSION-14（E2E-03） | admin 僅 member 登入 → `/admin/bookings` | redirect `/admin/login` |
+| TC-AUTH-SESSION-15（E2E-04） | 僅 admin 登入 → `/my/bookings` | redirect `/login` |
+| TC-AUTH-SESSION-16（E2E-05） | member 預約流程 | cookie 名為 member，既有流程通過 |
+
+#### TC-AUTH-SESSION-17｜前端：後台登入表單（WEB-01）
+
+```
+操作：AdminLoginForm 成功登入
+預期：POST /api/admin/auth/login，導向 /admin/bookings
+```
+
+#### TC-AUTH-SESSION-18｜前端：非 admin 403（WEB-02）
+
+```
+操作：AdminLoginForm 以一般會員登入
+預期：顯示無權限；不呼叫 POST /api/auth/logout
+```
+
+---
+
+### 2.6 ServiceCatalogService — 公開服務列表
 
 #### TC-SVC-LIST-001｜Happy Path
 
@@ -258,7 +297,7 @@ booking_completed:           user_a, slot endAt=過去時間, status=confirmed�
 
 ---
 
-### 2.6 ServiceCatalogService — 公開服務詳情
+### 2.7 ServiceCatalogService — 公開服務詳情
 
 #### TC-SVC-DETAIL-001｜Happy Path：active 服務
 
@@ -291,7 +330,7 @@ booking_completed:           user_a, slot endAt=過去時間, status=confirmed�
 
 ---
 
-### 2.7 AvailabilityService — 公開可預約時段
+### 2.8 AvailabilityService — 公開可預約時段
 
 #### TC-AVAIL-LIST-001｜Happy Path
 
@@ -368,7 +407,7 @@ Mock 時間：2026-05-21T10:00:00Z
 
 ---
 
-### 2.8 BookingService — 建立預約
+### 2.9 BookingService — 建立預約
 
 #### TC-BOOK-CREATE-001｜Happy Path
 
@@ -457,7 +496,7 @@ Mock 時間：2026-05-21T10:00:00Z
 
 ---
 
-### 2.9 BookingService — 查詢我的預約
+### 2.10 BookingService — 查詢我的預約
 
 #### TC-BOOK-ME-LIST-001｜Happy Path
 
@@ -505,7 +544,7 @@ user_a 呼叫 GET /api/me/bookings
 
 ---
 
-### 2.10 BookingService — 查詢我的預約詳情
+### 2.11 BookingService — 查詢我的預約詳情
 
 #### TC-BOOK-ME-DETAIL-001｜Happy Path
 
@@ -530,7 +569,7 @@ user_a 呼叫 GET /api/me/bookings
 
 ---
 
-### 2.11 BookingService — 取消我的預約
+### 2.12 BookingService — 取消我的預約
 
 #### TC-BOOK-CANCEL-001｜Happy Path
 

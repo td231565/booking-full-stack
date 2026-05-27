@@ -179,6 +179,20 @@
 - [x] E2E 覆蓋非 admin 被阻擋
 - [x] E2E 覆蓋 admin 建立服務、建立時段、建立預約、取消預約
 
+### 7.1 雙 Session 登入分離
+
+- [x] 會員登入 Set-Cookie 為 `booking_member_session`（非 `booking_session` / `booking_admin_session`）
+- [x] 後台登入 Set-Cookie 為 `booking_admin_session`（非 member cookie）
+- [x] `GET /api/auth/me` 僅接受 member cookie；僅 admin cookie 回 401
+- [x] `GET /api/admin/auth/me` 僅接受 admin cookie
+- [x] `POST /api/admin/auth/login` 非 admin 回 403 且不 Set admin cookie
+- [x] Member API 僅 member cookie 可存取；Admin API 僅 admin cookie 可存取
+- [x] 同一使用者可同時持有 member 與 admin session；兩邊 `/me` 互不干擾
+- [x] member logout 不撤銷 admin session；admin logout 不撤銷 member session
+- [x] 前端後台登入使用 `POST /api/admin/auth/login`（非會員 login + me + logout）
+- [x] 前端後台登出使用 `POST /api/admin/auth/logout`
+- [x] E2E 覆蓋僅 member 無法進後台、僅 admin 無法進會員私人頁、雙 session 並存可進兩邊
+
 ## 8. 完整性檢查
 
 已對照 `MVP_SPEC.md`、`api_contract.md`、`db_schema.md`、`frontend_flow.md` 與 `implementation_plan.md` 檢查，補齊以下原始建議未明確列出的驗證點：

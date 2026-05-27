@@ -22,7 +22,7 @@ todos:
     status: completed
   - id: phase6-docs
     content: Phase 6：更新 api_contract、frontend_flow、test_scenarios、README
-    status: pending
+    status: completed
 isProject: false
 ---
 

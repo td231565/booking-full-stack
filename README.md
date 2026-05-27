@@ -7,7 +7,7 @@
 | 文件 | 說明 |
 | --- | --- |
 | [MVP_SPEC.md](./MVP_SPEC.md) | 產品範圍、業務規則、角色權限 |
-| [api_contract.md](./api_contract.md) | API 路徑、請求/回應、錯誤碼 |
+| [api_contract.md](./docs/api_contract.md) | API 路徑、請求/回應、錯誤碼 |
 | [db_schema.md](./db_schema.md) | 資料表、索引、交易規則 |
 | [frontend_flow.md](./frontend_flow.md) | 前端路由與串接流程 |
 | [implementation_plan.md](./implementation_plan.md) | 分階段實作計畫 |
@@ -33,7 +33,7 @@
   - 同一時段僅一筆有效預約；同一會員不可重複預約同一時段
   - 僅能取消 **4 小時後才開始** 的 `confirmed` 預約
   - 結束時間已過且未取消的預約，查詢時對外顯示為 `completed`（不寫入狀態 log）
-- **認證**：server-side session + HttpOnly Cookie（argon2id 密碼雜湊）
+- **認證**：server-side session + HttpOnly Cookie（argon2id 密碼雜湊）；前台 `booking_member_session`、後台 `booking_admin_session` 分離，可同時登入
 
 ### 後台（管理員）
 
@@ -301,12 +301,13 @@ npm run typecheck      # TypeScript 檢查
    UPDATE users SET role = 'admin' WHERE email = '你的-email@example.com';
    ```
 
-2. **登入後台**：開啟 http://127.0.0.1:3000/admin/login ，以 admin 帳號登入
-   - 非 admin 帳號會顯示「此帳號無後台管理權限」
+2. **登入後台**：開啟 http://127.0.0.1:3000/admin/login ，以 admin 帳號登入（`POST /api/admin/auth/login`，寫入 `booking_admin_session`）
+   - 非 admin 帳號會顯示「此帳號無後台管理權限」（403）
+   - 僅在 `/login` 會員登入不足以進入後台；須完成後台登入
    - 登入成功後導向 **預約管理**（`/admin/bookings`）
 3. **瀏覽管理資料**：左側 sidebar 切換各管理頁，頂部 status bar 顯示目前頁面與登入人員
 4. **寫入操作**：建立服務、批次產生時段、代客建立/取消預約等，目前須直接呼叫 Admin API（完整定義見 [api_contract.md](./api_contract.md)）
-5. **登出**：sidebar 底部 **登出** 按鈕，清除 session 後返回 `/admin/login`
+5. **登出**：sidebar 底部 **登出** 按鈕（`POST /api/admin/auth/logout`），僅清除後台 session 後返回 `/admin/login`
 
 ### 權限與存取控制
 
@@ -325,9 +326,12 @@ npm run typecheck      # TypeScript 檢查
 | GET | `/services/:serviceId` | 服務詳情 | 否 |
 | GET | `/services/:serviceId/availability` | 可預約時段 | 否 |
 | POST | `/auth/register` | 註冊 | 否 |
-| POST | `/auth/login` | 登入（寫入 session cookie） | 否 |
-| POST | `/auth/logout` | 登出 | 是 |
-| GET | `/auth/me` | 目前使用者 | 是 |
+| POST | `/auth/login` | 會員登入（`booking_member_session`） | 否 |
+| POST | `/auth/logout` | 會員登出 | member |
+| GET | `/auth/me` | 目前會員使用者 | member |
+| POST | `/admin/auth/login` | 後台登入（`booking_admin_session`） | 否 |
+| POST | `/admin/auth/logout` | 後台登出 | admin |
+| GET | `/admin/auth/me` | 目前後台登入者 | admin |
 | POST | `/bookings` | 建立預約 | 是 |
 | GET | `/me/bookings` | 我的預約列表 | 是 |
 | GET | `/me/bookings/:bookingId` | 我的預約詳情 | 是 |
@@ -340,7 +344,7 @@ npm run typecheck      # TypeScript 檢查
 - **時間**：DB 存 UTC；API 回傳 ISO 8601；前端依使用者時區顯示
 - **授權**：後端不信任前端傳入的 `userId` / `role`；會員只能存取自己的預約；Admin API 僅 `role = admin` 可存取
 - **後台版面**：`/admin/*` 與公開站分離，不使用公開站 header，以 sidebar + status bar 呈現
-- **Session**：Cookie 設定 `HttpOnly`、`Secure`、`SameSite=Lax`；DB 僅存 token hash
+- **Session**：兩顆 Cookie（`booking_member_session` / `booking_admin_session`），皆設定 `HttpOnly`、`Secure`、`SameSite=Lax`；DB 僅存 token hash；登出僅撤銷對應 audience 的 session
 - **快取**：會員頁與後台頁使用 `dynamic = 'force-dynamic'`，避免 SSR 共享私人資料
 - **Rate limit**：依 `api_contract.md` §2.8 分路由限流（`npm run verify:phase6` 可驗證）
 

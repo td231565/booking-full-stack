@@ -32,7 +32,8 @@
 
 - 前端不讀取 HttpOnly Cookie
 - 前端不保存 access token 到 localStorage
-- 前端登入狀態以 `GET /api/auth/me` 為準
+- 前台登入狀態以 `GET /api/auth/me`（`booking_member_session`）為準
+- 後台登入狀態以 `GET /api/admin/auth/me`（`booking_admin_session`）為準；兩者互不干擾
 - 前端 route guard 只改善 UX，真正權限由後端 API 驗證
 
 ## 3. 建議路由結構
@@ -97,7 +98,7 @@ src/
     site-header.tsx         # 公開站 header（pathname 以 /admin 開頭時不渲染）
   lib/
     api/
-    auth/                   # getCurrentUser、getCurrentUserFromCookieHeader
+    auth/                   # getCurrentMemberUser、getCurrentAdminUser、getCurrentUserFromCookieHeader
     admin/                  # admin-api.ts
     services/
     bookings/
@@ -120,7 +121,7 @@ currentUser = User | null
 
 ```text
 1. App 載入或進入需要登入的頁面
-2. 呼叫 GET /api/auth/me
+2. 前台頁呼叫 GET /api/auth/me；後台 dashboard 呼叫 GET /api/admin/auth/me
 3. 成功時設定 currentUser
 4. 401 時視為未登入
 ```
@@ -129,7 +130,8 @@ currentUser = User | null
 
 - Cookie 是 HttpOnly，前端不直接讀 token
 - 不要把 user role 當成安全邊界
-- Admin API 仍必須由後端檢查 `role = admin`
+- 後台 layout 僅認 admin session；僅 member 登入的 admin 帳號仍會被導向 `/admin/login`
+- Admin API 仍必須由後端檢查 admin session 與 `role = admin`
 
 ### 4.2 API 錯誤狀態
 
@@ -241,12 +243,14 @@ POST /api/auth/login
 GET /api/auth/me
 ```
 
+Cookie：`booking_member_session`。
+
 流程：
 
 ```text
 1. 使用者輸入 email / password
 2. 前端送出 POST /api/auth/login
-3. 成功後後端寫入 HttpOnly Cookie
+3. 成功後後端寫入 booking_member_session（HttpOnly Cookie）
 4. 前端呼叫 GET /api/auth/me 更新 currentUser
 5. 若 URL 有 redirect，導回 redirect
 6. 若沒有 redirect，導向 /my/bookings
@@ -378,10 +382,11 @@ POST /api/me/bookings/:bookingId/cancel
 
 ```text
 1. 後台登入頁 /admin/login：不經 dashboard layout
-2. 已登入 admin 訪問 /admin/login → redirect /admin/bookings
-3. dashboard 各頁 layout 以 cookies() 轉送 Cookie，呼叫 GET /api/auth/me
-4. 未登入或 role !== admin → redirect /admin/login
-5. 真正寫入權限仍由後端 Admin API 驗證 role = admin
+2. 已有 admin session 訪問 /admin/login → redirect /admin/bookings
+3. dashboard layout 以 cookies() 轉送 Cookie，呼叫 GET /api/admin/auth/me（getCurrentAdminUser）
+4. 無 admin session 或 role !== admin → redirect /admin/login
+5. 僅 member session 的 admin 帳號無法進入 dashboard（須另做後台登入）
+6. 真正寫入權限仍由後端 Admin API 驗證 admin session 與 role = admin
 ```
 
 **目前 UI 實作範圍（MVP）**
@@ -395,32 +400,24 @@ POST /api/me/bookings/:bookingId/cancel
 用途：
 
 - 後台專用登入入口（與會員 `/login` 分離）
-- 驗證帳密後確認 `role = admin`
+- 僅寫入 `booking_admin_session`；不與會員登入共用 cookie
 
 串接 API：
 
 ```text
-POST /api/auth/login
-GET /api/auth/me
-POST /api/auth/logout   # 非 admin 登入成功後立即呼叫，清除 session
+POST /api/admin/auth/login
 ```
 
 流程：
 
 ```text
 1. 使用者輸入 email / password
-2. 前端送出 POST /api/auth/login
-3. 成功後呼叫 GET /api/auth/me
-4. 若 role !== admin：
-   - 呼叫 POST /api/auth/logout
-   - 顯示「此帳號無後台管理權限。」
-   - 停留登入頁
-5. 若 role === admin：
-   - 導向 /admin/bookings
-   - router.refresh()
+2. 前端送出 POST /api/admin/auth/login
+3. 成功後後端寫入 booking_admin_session，導向 /admin/bookings 並 router.refresh()
+4. 非 admin 帳號：API 回 403 FORBIDDEN，顯示「此帳號無後台管理權限。」，停留登入頁（不呼叫會員 logout）
 ```
 
-錯誤處理：與會員登入相同（`INVALID_CREDENTIALS`、`USER_DISABLED`、`RATE_LIMITED`）。
+錯誤處理：`INVALID_CREDENTIALS`、`USER_DISABLED`、`RATE_LIMITED` 同會員登入；非 admin 為 `FORBIDDEN`（403）。
 
 實作：`AdminLoginForm`（Client Component）、`AdminLoginPage`（Server Component，已登入 admin 則 redirect）。
 
@@ -447,10 +444,12 @@ Server Component 執行 redirect('/admin/bookings')
 
 ```text
 1. 使用者點擊登出
-2. 呼叫 POST /api/auth/logout
+2. 呼叫 POST /api/admin/auth/logout（僅清除 admin session）
 3. 導向 /admin/login
 4. router.refresh()
 ```
+
+注意：若同時持有 member session，登出後台不影響前台登入狀態。
 
 ### 8.4 服務管理 `/admin/services`
 
@@ -634,9 +633,9 @@ GET /api/admin/audit-logs?page=1&pageSize=20
 
 ```text
 1. 使用者直接開啟 /admin/login（公開站無後台連結）
-2. 輸入 admin 帳密，POST /api/auth/login
-3. GET /api/auth/me 確認 role = admin
-4. 導向 /admin/bookings（預約管理）
+2. 輸入 admin 帳密，POST /api/admin/auth/login
+3. 後端寫入 booking_admin_session 並導向 /admin/bookings
+4. dashboard layout 以 GET /api/admin/auth/me 確認 admin session
 5. 透過 sidebar 切換其他管理頁
 ```
 
@@ -671,7 +670,7 @@ GET /api/admin/audit-logs?page=1&pageSize=20
 - 公開頁不可混入會員私人資料再做共享快取
 - 會員與後台頁不應使用靜態產生
 - 可預約時段需在預約成功後刷新
-- 後台 Server Component 須透過 `cookies().toString()` 轉送 Cookie 呼叫 API（見 `getCurrentUserFromCookieHeader`、`admin-api.ts`）
+- 後台 Server Component 須透過 `cookies().toString()` 轉送 Cookie 呼叫 API（見 `getCurrentAdminUserFromCookieHeader`、`admin-api.ts`）
 
 ## 11. 表單與互動規則
 
