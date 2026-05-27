@@ -42,6 +42,12 @@ export async function promoteUserToAdmin(email: string): Promise<void> {
   await ds.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [email.trim().toLowerCase()]);
 }
 
+// 將指定 email 的使用者降回一般會員，供驗證 admin session 但 role 非 admin 時回 403。
+export async function demoteUserFromAdmin(email: string): Promise<void> {
+  const ds = await getDataSource();
+  await ds.query(`UPDATE users SET role = 'user' WHERE email = $1`, [email.trim().toLowerCase()]);
+}
+
 // 停用指定 email 的使用者，供登入邊界測試使用。
 export async function disableUser(email: string): Promise<void> {
   const ds = await getDataSource();

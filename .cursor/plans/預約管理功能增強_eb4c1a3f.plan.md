@@ -4,10 +4,10 @@ overview: 擴充後台 `/admin/bookings` 頁面，從純唯讀列表改為以日
 todos:
   - id: test-backend-user-lookup
     content: "[TDD-Red] 後端：在 admin.e2e.spec.ts 補寫 GET /api/admin/users/lookup 測試案例（200、404、403）"
-    status: pending
+    status: completed
   - id: backend-user-lookup
     content: "[TDD-Green] 後端：實作 user lookup（repository + service + controller），使測試通過"
-    status: pending
+    status: completed
   - id: test-backend-reschedule
     content: "[TDD-Red] 後端：補寫 PATCH /api/admin/bookings/:id 改期測試案例（成功改期、audit log、時段不可用 409）"
     status: pending

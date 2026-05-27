@@ -119,6 +119,15 @@ export class AdminController {
     return successResponse(result);
   }
 
+  // 依 email 查詢 active 會員，供後台新增預約 dialog 使用。
+  @Get('users/lookup')
+  async lookupUser(@Req() request: Request, @Query('email') email: string) {
+    await this.requireAdmin(request);
+    const user = await this.adminService.lookupUserByEmail(email);
+
+    return successResponse(user);
+  }
+
   // 查詢所有會員預約。
   @Get('bookings')
   async getBookings(

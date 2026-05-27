@@ -304,6 +304,17 @@ export class AdminService {
     return { created, skipped };
   }
 
+  // 依 email 查詢 active 會員，找不到時拋 404 供前端顯示錯誤。
+  async lookupUserByEmail(email: string): Promise<{ id: string; email: string; displayName: string }> {
+    const user = await this.adminRepository.findActiveUserByEmail(email.trim());
+
+    if (!user) {
+      throw new ApiException(404, 'USER_NOT_FOUND', '會員不存在');
+    }
+
+    return user;
+  }
+
   // 查詢所有預約，Admin 可依狀態、服務、會員與時段篩選。
   async getBookings(
     page: number,

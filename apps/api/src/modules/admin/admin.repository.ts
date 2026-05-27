@@ -74,6 +74,12 @@ export type CancelledAdminBookingRecord = {
   cancelledAt: Date;
 };
 
+export type AdminUserLookupRecord = {
+  id: string;
+  email: string;
+  displayName: string;
+};
+
 type SlotForAdminBooking = {
   id: string;
   serviceId: string;
@@ -439,6 +445,24 @@ export class AdminRepository {
       `,
       [slotId],
     )) as SlotForAdminBooking[];
+
+    return rows[0] ?? null;
+  }
+
+  // 依 email 查詢 active 會員，供後台新增預約前確認會員身分。
+  async findActiveUserByEmail(email: string): Promise<AdminUserLookupRecord | null> {
+    const rows = await this.dataSource.query<AdminUserLookupRecord[]>(
+      `
+        SELECT
+          id,
+          email,
+          display_name AS "displayName"
+        FROM users
+        WHERE lower(email) = lower($1) AND status = 'active'
+        LIMIT 1
+      `,
+      [email],
+    );
 
     return rows[0] ?? null;
   }

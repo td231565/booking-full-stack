@@ -1,6 +1,12 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { closeTestDataSource, hasAuditLog, promoteUserToAdmin, queryScalar } from './helpers/test-db';
+import {
+  closeTestDataSource,
+  demoteUserFromAdmin,
+  hasAuditLog,
+  promoteUserToAdmin,
+  queryScalar,
+} from './helpers/test-db';
 import { createTestApp } from './helpers/create-test-app';
 import { parseSessionCookie, sessionCookieHeader } from './helpers/http';
 
@@ -240,6 +246,59 @@ describe('Admin API (integration)', () => {
       `SELECT COUNT(*)::text FROM booking_status_logs WHERE booking_id = '${bookingId}' AND from_status = 'confirmed' AND to_status = 'cancelled'`,
     );
     expect(Number(cancelLogCount)).toBeGreaterThanOrEqual(1);
+  });
+
+  describe('Admin 會員查詢', () => {
+    // 後台可依 email 查詢 active 會員，供新增預約 dialog 使用。
+    it('GET /api/admin/users/lookup 可依 email 查詢會員', async () => {
+      const adminEmail = `admin-user-lookup-${runId}@example.com`;
+      const memberEmail = `admin-user-lookup-member-${runId}@example.com`;
+
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'User Lookup Admin');
+      const member = await registerAndLogin(memberEmail, 'User Lookup Member');
+
+      const response = await request(app.getHttpServer())
+        .get('/api/admin/users/lookup')
+        .query({ email: memberEmail })
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .expect(200);
+
+      expect(response.body.data).toEqual({
+        id: member.userId,
+        email: memberEmail,
+        displayName: 'User Lookup Member',
+      });
+    });
+
+    // email 不存在或非 active 會員時回 404。
+    it('GET /api/admin/users/lookup email 不存在時回 404', async () => {
+      const adminEmail = `admin-user-lookup-404-${runId}@example.com`;
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'User Lookup 404 Admin');
+
+      const response = await request(app.getHttpServer())
+        .get('/api/admin/users/lookup')
+        .query({ email: `missing-${runId}@example.com` })
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .expect(404);
+
+      expect(response.body.error.code).toBe('USER_NOT_FOUND');
+    });
+
+    // 持有 admin session 但 role 已非 admin 時回 403。
+    it('GET /api/admin/users/lookup 非 admin 時回 403', async () => {
+      const adminEmail = `admin-user-lookup-403-${runId}@example.com`;
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'User Lookup 403 Admin');
+
+      await demoteUserFromAdmin(adminEmail);
+
+      const response = await request(app.getHttpServer())
+        .get('/api/admin/users/lookup')
+        .query({ email: `any-${runId}@example.com` })
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .expect(403);
+
+      expect(response.body.error.code).toBe('FORBIDDEN');
+    });
   });
 
   describe('Admin 權限', () => {
