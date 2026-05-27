@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Form, FormError, FormField, TextInput } from '@/components/ui/form';
+import { mutate } from 'swr';
 import { ApiClientError, ApiSuccessResponse, apiFetch } from '@/lib/api/client';
 import { CurrentUser } from '@/lib/auth/get-current-user';
+import { MEMBER_AUTH_SWR_KEY } from '@/lib/auth/use-current-member-user';
 
 type LoginFormProps = {
   redirectTo: string;
@@ -34,6 +36,8 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           password,
         }),
       });
+      // 登入成功後立即更新 header 的 SWR 快取，避免仍顯示「登入」連結。
+      await mutate(MEMBER_AUTH_SWR_KEY);
       router.push(redirectTo);
       router.refresh();
     } catch (error) {

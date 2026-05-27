@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
-import { IBM_Plex_Sans, Noto_Sans_TC } from 'next/font/google';
+import { IBM_Plex_Sans, Noto_Sans_TC, Geist } from 'next/font/google';
 import { SiteHeader } from '@/components/site-header';
 import './globals.css';
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const ibmPlexSans = IBM_Plex_Sans({
   subsets: ['latin'],
@@ -27,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html className={`${ibmPlexSans.variable} ${notoSansTC.variable}`} lang="zh-Hant-TW">
+    <html className={cn(ibmPlexSans.variable, notoSansTC.variable, "font-sans", geist.variable)} lang="zh-Hant-TW">
       <body className="min-h-screen">
         <div className="flex min-h-screen flex-col">
           <SiteHeader />
