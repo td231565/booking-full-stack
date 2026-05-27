@@ -587,6 +587,213 @@ describe('Admin API (integration)', () => {
       expect(logs.body.data.length).toBeGreaterThanOrEqual(1);
     });
 
+    // Admin 可將 confirmed 預約改期至同服務的另一個可用時段。
+    it('PATCH /api/admin/bookings/:id 可改期至同服務的可用時段', async () => {
+      const adminEmail = `admin-reschedule-${runId}@example.com`;
+      const memberEmail = `admin-reschedule-member-${runId}@example.com`;
+
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Reschedule Admin');
+      const member = await registerAndLogin(memberEmail, 'Reschedule Member');
+
+      const service = await request(app.getHttpServer())
+        .post('/api/admin/services')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          name: `Reschedule Svc ${runId}`,
+          durationMinutes: 60,
+          price: 960,
+          status: 'active',
+        })
+        .expect(201);
+
+      const originalStart = new Date(Date.now() + 19 * 60 * 60 * 1000);
+      const originalEnd = new Date(originalStart.getTime() + 60 * 60 * 1000);
+      const newStart = new Date(Date.now() + 20 * 60 * 60 * 1000);
+      const newEnd = new Date(newStart.getTime() + 60 * 60 * 1000);
+
+      const originalSlot = await request(app.getHttpServer())
+        .post('/api/admin/availability-slots')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          serviceId: service.body.data.id,
+          startAt: originalStart.toISOString(),
+          endAt: originalEnd.toISOString(),
+          status: 'available',
+        })
+        .expect(201);
+
+      const newSlot = await request(app.getHttpServer())
+        .post('/api/admin/availability-slots')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          serviceId: service.body.data.id,
+          startAt: newStart.toISOString(),
+          endAt: newEnd.toISOString(),
+          status: 'available',
+        })
+        .expect(201);
+
+      const booking = await request(app.getHttpServer())
+        .post('/api/admin/bookings')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          userId: member.userId,
+          availabilitySlotId: originalSlot.body.data.id,
+        })
+        .expect(201);
+
+      const rescheduled = await request(app.getHttpServer())
+        .patch(`/api/admin/bookings/${booking.body.data.id}`)
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({ availabilitySlotId: newSlot.body.data.id })
+        .expect(200);
+
+      expect(rescheduled.body.data.slot.id).toBe(newSlot.body.data.id);
+      expect(rescheduled.body.data.slot.startAt).toBe(newStart.toISOString());
+    });
+
+    // 改期至 blocked 或已被預約的時段應回 409。
+    it('PATCH /api/admin/bookings/:id 改期至不可用時段回 409', async () => {
+      const adminEmail = `admin-reschedule-409-${runId}@example.com`;
+      const memberEmail = `admin-reschedule-409-member-${runId}@example.com`;
+
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Reschedule 409 Admin');
+      const member = await registerAndLogin(memberEmail, 'Reschedule 409 Member');
+
+      const service = await request(app.getHttpServer())
+        .post('/api/admin/services')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          name: `Reschedule 409 Svc ${runId}`,
+          durationMinutes: 60,
+          price: 965,
+          status: 'active',
+        })
+        .expect(201);
+
+      const originalStart = new Date(Date.now() + 21 * 60 * 60 * 1000);
+      const originalEnd = new Date(originalStart.getTime() + 60 * 60 * 1000);
+      const blockedStart = new Date(Date.now() + 22 * 60 * 60 * 1000);
+      const blockedEnd = new Date(blockedStart.getTime() + 60 * 60 * 1000);
+
+      const originalSlot = await request(app.getHttpServer())
+        .post('/api/admin/availability-slots')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          serviceId: service.body.data.id,
+          startAt: originalStart.toISOString(),
+          endAt: originalEnd.toISOString(),
+          status: 'available',
+        })
+        .expect(201);
+
+      const blockedSlot = await request(app.getHttpServer())
+        .post('/api/admin/availability-slots')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          serviceId: service.body.data.id,
+          startAt: blockedStart.toISOString(),
+          endAt: blockedEnd.toISOString(),
+          status: 'blocked',
+        })
+        .expect(201);
+
+      const booking = await request(app.getHttpServer())
+        .post('/api/admin/bookings')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          userId: member.userId,
+          availabilitySlotId: originalSlot.body.data.id,
+        })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .patch(`/api/admin/bookings/${booking.body.data.id}`)
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({ availabilitySlotId: blockedSlot.body.data.id })
+        .expect(409);
+
+      expect(response.body.error.code).toBe('BOOKING_SLOT_UNAVAILABLE');
+    });
+
+    // 改期成功應寫入 admin.booking.reschedule audit log，metadata 含改前後 slotId。
+    it('PATCH /api/admin/bookings/:id 改期寫入 admin.booking.reschedule audit log', async () => {
+      const adminEmail = `admin-reschedule-audit-${runId}@example.com`;
+      const memberEmail = `admin-reschedule-audit-member-${runId}@example.com`;
+
+      const admin = await registerPromoteAndAdminLogin(adminEmail, 'Reschedule Audit Admin');
+      const member = await registerAndLogin(memberEmail, 'Reschedule Audit Member');
+
+      const service = await request(app.getHttpServer())
+        .post('/api/admin/services')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          name: `Reschedule Audit Svc ${runId}`,
+          durationMinutes: 60,
+          price: 970,
+          status: 'active',
+        })
+        .expect(201);
+
+      const originalStart = new Date(Date.now() + 23 * 60 * 60 * 1000);
+      const originalEnd = new Date(originalStart.getTime() + 60 * 60 * 1000);
+      const newStart = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const newEnd = new Date(newStart.getTime() + 60 * 60 * 1000);
+
+      const originalSlot = await request(app.getHttpServer())
+        .post('/api/admin/availability-slots')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          serviceId: service.body.data.id,
+          startAt: originalStart.toISOString(),
+          endAt: originalEnd.toISOString(),
+          status: 'available',
+        })
+        .expect(201);
+
+      const newSlot = await request(app.getHttpServer())
+        .post('/api/admin/availability-slots')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          serviceId: service.body.data.id,
+          startAt: newStart.toISOString(),
+          endAt: newEnd.toISOString(),
+          status: 'available',
+        })
+        .expect(201);
+
+      const booking = await request(app.getHttpServer())
+        .post('/api/admin/bookings')
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({
+          userId: member.userId,
+          availabilitySlotId: originalSlot.body.data.id,
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/api/admin/bookings/${booking.body.data.id}`)
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .send({ availabilitySlotId: newSlot.body.data.id })
+        .expect(200);
+
+      const logs = await request(app.getHttpServer())
+        .get('/api/admin/audit-logs')
+        .query({ action: 'admin.booking.reschedule', targetId: booking.body.data.id })
+        .set('Cookie', sessionCookieHeader(admin.token, 'admin'))
+        .expect(200);
+
+      expect(logs.body.data.length).toBeGreaterThanOrEqual(1);
+
+      const metadata = logs.body.data[0].metadata as {
+        before: { availabilitySlotId: string };
+        after: { availabilitySlotId: string };
+      };
+
+      expect(metadata.before.availabilitySlotId).toBe(originalSlot.body.data.id);
+      expect(metadata.after.availabilitySlotId).toBe(newSlot.body.data.id);
+    });
+
     // Admin 取消預約應寫入 admin.booking.cancel audit log。
     it('Admin 取消預約寫入 admin.booking.cancel audit log', async () => {
       const adminEmail = `admin-audit-cancel-${runId}@example.com`;

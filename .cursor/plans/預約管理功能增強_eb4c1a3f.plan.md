@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: test-backend-reschedule
     content: "[TDD-Red] 後端：補寫 PATCH /api/admin/bookings/:id 改期測試案例（成功改期、audit log、時段不可用 409）"
-    status: pending
+    status: completed
   - id: backend-reschedule
     content: "[TDD-Green] 後端：擴充 UpdateAdminBookingDto + updateBooking service + repository，使測試通過"
     status: pending
