@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { readSessionTokenFromRequest } from '../../common/auth/session-cookie';
 import { noContentResponse, successResponse } from '../../common/api-response';
 import { LoginDto, RegisterDto } from './auth.dto';
 import { AuthService } from './auth.service';
@@ -21,9 +22,9 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   async login(@Body() body: LoginDto, @Res({ passthrough: true }) response: Response) {
-    const result = await this.authService.login(body.email, body.password);
+    const result = await this.authService.login(body.email, body.password, 'member');
 
-    response.cookie(this.authService.getSessionCookieName(), result.sessionToken, {
+    response.cookie(this.authService.getSessionCookieName('member'), result.sessionToken, {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',
@@ -38,8 +39,9 @@ export class AuthController {
   @Post('logout')
   @HttpCode(200)
   async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    await this.authService.logout(this.readSessionToken(request));
-    response.clearCookie(this.authService.getSessionCookieName(), {
+    const sessionToken = this.readMemberSessionToken(request);
+    await this.authService.logout(sessionToken, 'member');
+    response.clearCookie(this.authService.getSessionCookieName('member'), {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',
@@ -52,24 +54,13 @@ export class AuthController {
   // 依 HttpOnly Cookie 對應的 server-side session 回傳目前登入者。
   @Get('me')
   async getCurrentUser(@Req() request: Request) {
-    const user = await this.authService.getCurrentUser(this.readSessionToken(request));
+    const user = await this.authService.getCurrentUser(this.readMemberSessionToken(request), 'member');
 
     return successResponse(user);
   }
 
-  // 從 Cookie header 解析 session token，避免前端接觸 HttpOnly cookie。
-  private readSessionToken(request: Request): string | undefined {
-    const cookieHeader = request.headers.cookie;
-
-    if (!cookieHeader) {
-      return undefined;
-    }
-
-    const cookie = cookieHeader
-      .split(';')
-      .map((item) => item.trim())
-      .find((item) => item.startsWith(`${this.authService.getSessionCookieName()}=`));
-
-    return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : undefined;
+  // 會員 Auth 僅讀 booking_member_session，忽略 admin cookie 以防混用。
+  private readMemberSessionToken(request: Request): string | undefined {
+    return readSessionTokenFromRequest(request, this.authService.getSessionCookieName('member'));
   }
 }

@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: phase2-member-e2e
     content: Phase 2 RED→GREEN：auth.e2e 會員 cookie + AuthController member only
-    status: pending
+    status: completed
   - id: phase3-admin-e2e
     content: Phase 3 RED→GREEN：admin-auth.e2e + AdminAuthController + booking/admin 分流讀 cookie
     status: pending

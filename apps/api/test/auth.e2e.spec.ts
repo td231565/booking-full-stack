@@ -4,6 +4,7 @@ import { createTestApp } from './helpers/create-test-app';
 import {
   expectSessionCookieCleared,
   expectSessionCookieSecurityAttributes,
+  getSetCookieHeaders,
   parseSessionCookie,
   sessionCookieHeader,
 } from './helpers/http';
@@ -42,8 +43,8 @@ describe('Auth API (integration)', () => {
     expect(response.body.data).not.toHaveProperty('passwordHash');
   });
 
-  // POST /api/auth/login 成功並回傳 booking_session cookie。
-  it('POST /api/auth/login 成功取得 booking_session cookie', async () => {
+  // AUTH-M-01：會員登入僅設定 booking_member_session，不得出現 admin cookie。
+  it('POST /api/auth/login 僅 Set-Cookie booking_member_session', async () => {
     const email = `auth-login-${runId}@example.com`;
 
     await request(app.getHttpServer())
@@ -57,12 +58,16 @@ describe('Auth API (integration)', () => {
       .send({ email, password })
       .expect(200);
 
-    expect(parseSessionCookie(response)).toBeTruthy();
+    expect(parseSessionCookie(response, 'member')).toBeTruthy();
+    expect(parseSessionCookie(response, 'admin')).toBeNull();
+    expect(
+      getSetCookieHeaders(response).some((item) => item.startsWith('booking_admin_session=')),
+    ).toBe(false);
     expect(response.body.data.email).toBe(email);
   });
 
-  // GET /api/auth/me 使用 cookie 回傳目前登入者。
-  it('GET /api/auth/me 使用 cookie 回傳目前登入者', async () => {
+  // AUTH-M-02：帶 member cookie 可取得目前登入者。
+  it('GET /api/auth/me 使用 member cookie 回傳目前登入者', async () => {
     const email = `auth-me-${runId}@example.com`;
 
     await request(app.getHttpServer())
@@ -86,8 +91,8 @@ describe('Auth API (integration)', () => {
     expect(me.body.data.email).toBe(email);
   });
 
-  // POST /api/auth/logout 清除 session，後續 /me 回 401。
-  it('POST /api/auth/logout 清除 session 後 /me 回 401', async () => {
+  // AUTH-M-03：登出清除 member cookie，同 token 再呼叫 /me 回 401。
+  it('POST /api/auth/logout 清除 member session 後 /me 回 401', async () => {
     const email = `auth-logout-${runId}@example.com`;
 
     await request(app.getHttpServer())
@@ -111,6 +116,31 @@ describe('Auth API (integration)', () => {
     const me = await request(app.getHttpServer())
       .get('/api/auth/me')
       .set('Cookie', sessionCookieHeader(sessionToken!))
+      .expect(401);
+
+    expect(me.body.error.code).toBe('UNAUTHENTICATED');
+  });
+
+  // AUTH-M-04：會員 /me 只認 member cookie，帶 admin cookie 名稱應視為未登入。
+  it('GET /api/auth/me 僅帶 admin cookie 回 401 UNAUTHENTICATED', async () => {
+    const email = `auth-me-admin-cookie-${runId}@example.com`;
+
+    await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .set('X-Forwarded-For', `10.10.11.${runId % 200}`)
+      .send({ email, password, displayName: 'Me Admin Cookie' });
+
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .set('X-Forwarded-For', `10.10.11.${runId % 200}`)
+      .send({ email, password });
+
+    const sessionToken = parseSessionCookie(login, 'member');
+    expect(sessionToken).toBeTruthy();
+
+    const me = await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Cookie', sessionCookieHeader(sessionToken!, 'admin'))
       .expect(401);
 
     expect(me.body.error.code).toBe('UNAUTHENTICATED');
