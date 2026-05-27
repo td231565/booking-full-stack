@@ -1,5 +1,6 @@
 export const API_BASE_URL = process.env.API_BASE_URL ?? 'http://127.0.0.1:3001';
-export const SESSION_COOKIE_NAME = 'booking_session';
+export const MEMBER_SESSION_COOKIE_NAME = 'booking_member_session';
+export const ADMIN_SESSION_COOKIE_NAME = 'booking_admin_session';
 export const DEFAULT_PASSWORD = 'password123';
 
 // migration 種子資料中的公開服務名稱，供 E2E 對照契約行為。

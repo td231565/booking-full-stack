@@ -1,6 +1,14 @@
 import { execSync } from 'node:child_process';
 import type { APIRequestContext, APIResponse } from '@playwright/test';
-import { API_BASE_URL, DEFAULT_PASSWORD, SEED_SERVICE_NAMES, SESSION_COOKIE_NAME } from './constants';
+import {
+  ADMIN_SESSION_COOKIE_NAME,
+  API_BASE_URL,
+  DEFAULT_PASSWORD,
+  MEMBER_SESSION_COOKIE_NAME,
+  SEED_SERVICE_NAMES,
+} from './constants';
+
+type SessionAudience = 'member' | 'admin';
 
 export type AuthSession = {
   token: string;
@@ -69,20 +77,34 @@ export function findInactiveServiceIdFromDb(): string {
   return serviceId;
 }
 
-// 從 login 回應解析 booking_session cookie，供瀏覽器 context 帶入跨域 API 請求。
-export function parseSessionToken(response: APIResponse): string | null {
+// 依 audience 取得對應 session cookie 名稱。
+function getSessionCookieName(audience: SessionAudience): string {
+  return audience === 'admin' ? ADMIN_SESSION_COOKIE_NAME : MEMBER_SESSION_COOKIE_NAME;
+}
+
+// 將 session token 組成 Cookie header，供 Playwright API 請求帶入。
+export function sessionCookieHeader(token: string, audience: SessionAudience = 'member'): string {
+  return `${getSessionCookieName(audience)}=${encodeURIComponent(token)}`;
+}
+
+// 從 login 回應解析指定 audience 的 session cookie，供瀏覽器 context 帶入跨域 API 請求。
+export function parseSessionToken(
+  response: APIResponse,
+  audience: SessionAudience = 'member',
+): string | null {
+  const cookieName = getSessionCookieName(audience);
   const cookies = response
     .headersArray()
     .filter((header) => header.name.toLowerCase() === 'set-cookie')
     .map((header) => header.value);
 
-  const target = cookies.find((item) => item.startsWith(`${SESSION_COOKIE_NAME}=`));
+  const target = cookies.find((item) => item.startsWith(`${cookieName}=`));
 
   if (!target) {
     return null;
   }
 
-  return decodeURIComponent(target.split(';')[0].slice(SESSION_COOKIE_NAME.length + 1));
+  return decodeURIComponent(target.split(';')[0].slice(cookieName.length + 1));
 }
 
 // 註冊新會員；每個測試使用唯一 email 避免與其他案例衝突。
@@ -121,10 +143,10 @@ export async function loginUser(
     throw new Error(`login failed: ${response.status()} ${await response.text()}`);
   }
 
-  const token = parseSessionToken(response);
+  const token = parseSessionToken(response, 'member');
 
   if (!token) {
-    throw new Error(`missing session cookie for ${email}`);
+    throw new Error(`missing member session cookie for ${email}`);
   }
 
   const body = (await response.json()) as { data: { id: string; email: string } };
@@ -136,7 +158,39 @@ export async function loginUser(
   };
 }
 
-// 註冊並登入，回傳可用於後續 Member / Admin API 的 session。
+// 後台登入並回傳 admin session token 與 user id。
+export async function loginAdminUser(
+  request: APIRequestContext,
+  email: string,
+  password = DEFAULT_PASSWORD,
+): Promise<AuthSession> {
+  const response = await request.post(`${API_BASE_URL}/api/admin/auth/login`, {
+    headers: {
+      'X-Forwarded-For': buildForwardedIp('admin-login', email),
+    },
+    data: { email, password },
+  });
+
+  if (response.status() !== 200) {
+    throw new Error(`admin login failed: ${response.status()} ${await response.text()}`);
+  }
+
+  const token = parseSessionToken(response, 'admin');
+
+  if (!token) {
+    throw new Error(`missing admin session cookie for ${email}`);
+  }
+
+  const body = (await response.json()) as { data: { id: string; email: string } };
+
+  return {
+    token,
+    userId: body.data.id,
+    email: body.data.email,
+  };
+}
+
+// 註冊並登入，回傳可用於後續 Member API 的 session。
 export async function registerAndLogin(
   request: APIRequestContext,
   email: string,
@@ -145,6 +199,18 @@ export async function registerAndLogin(
 ): Promise<AuthSession> {
   await registerUser(request, email, displayName, password);
   return loginUser(request, email, password);
+}
+
+// 註冊、升級為 admin 並以後台登入，回傳 admin session。
+export async function registerAndLoginAdmin(
+  request: APIRequestContext,
+  email: string,
+  displayName: string,
+  password = DEFAULT_PASSWORD,
+): Promise<AuthSession> {
+  await registerUser(request, email, displayName, password);
+  promoteUserToAdmin(email);
+  return loginAdminUser(request, email, password);
 }
 
 // 將指定 email 升級為 admin，對應 verification checklist 的後台權限需求。
@@ -179,7 +245,7 @@ export async function createAdminService(
 ): Promise<string> {
   const response = await request.post(`${API_BASE_URL}/api/admin/services`, {
     headers: {
-      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+      Cookie: sessionCookieHeader(adminToken, 'admin'),
     },
     data: {
       name,
@@ -235,7 +301,7 @@ async function createAdminAvailabilitySlotAt(
 ): Promise<string> {
   const response = await request.post(`${API_BASE_URL}/api/admin/availability-slots`, {
     headers: {
-      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+      Cookie: sessionCookieHeader(adminToken, 'admin'),
     },
     data: {
       serviceId,
@@ -262,7 +328,7 @@ export async function updateAdminService(
 ): Promise<void> {
   const response = await request.patch(`${API_BASE_URL}/api/admin/services/${serviceId}`, {
     headers: {
-      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+      Cookie: sessionCookieHeader(adminToken, 'admin'),
     },
     data: payload,
   });
@@ -287,7 +353,7 @@ export async function bulkGenerateAdminAvailabilitySlots(
 ): Promise<{ created: number; skipped: number }> {
   const response = await request.post(`${API_BASE_URL}/api/admin/availability-slots/bulk-generate`, {
     headers: {
-      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+      Cookie: sessionCookieHeader(adminToken, 'admin'),
     },
     data: payload,
   });
@@ -310,7 +376,7 @@ export async function createAdminBooking(
 ): Promise<string> {
   const response = await request.post(`${API_BASE_URL}/api/admin/bookings`, {
     headers: {
-      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+      Cookie: sessionCookieHeader(adminToken, 'admin'),
     },
     data: { userId, availabilitySlotId, note },
   });
@@ -332,7 +398,7 @@ export async function cancelAdminBooking(
 ): Promise<APIResponse> {
   return request.post(`${API_BASE_URL}/api/admin/bookings/${bookingId}/cancel`, {
     headers: {
-      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+      Cookie: sessionCookieHeader(adminToken, 'admin'),
     },
     data: { reason },
   });
@@ -351,7 +417,7 @@ export async function tryCreateAdminAvailabilitySlot(
 
   return request.post(`${API_BASE_URL}/api/admin/availability-slots`, {
     headers: {
-      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+      Cookie: sessionCookieHeader(adminToken, 'admin'),
     },
     data: {
       serviceId,
@@ -420,7 +486,7 @@ export async function findAdminServiceIdByName(
 ): Promise<string | null> {
   const response = await request.get(`${API_BASE_URL}/api/admin/services?page=1&pageSize=50`, {
     headers: {
-      Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminToken)}`,
+      Cookie: sessionCookieHeader(adminToken, 'admin'),
     },
   });
 
@@ -454,8 +520,7 @@ export async function ensurePublicAvailabilitySlot(
   }
 
   const adminEmail = `e2e-ensure-admin-${identityKey}@example.com`;
-  const adminSession = await registerAndLogin(request, adminEmail, 'Ensure Slot Admin');
-  promoteUserToAdmin(adminEmail);
+  const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Ensure Slot Admin');
   await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 60, 60);
 }
 

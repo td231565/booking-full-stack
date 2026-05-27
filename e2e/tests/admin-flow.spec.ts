@@ -8,10 +8,11 @@ import {
   findAdminServiceIdByName,
   readApiErrorCode,
   registerAndLogin,
+  sessionCookieHeader,
   tryCreateAdminAvailabilitySlot,
   updateAdminService,
 } from '../helpers/api';
-import { API_BASE_URL, SEED_SERVICE_NAMES, SESSION_COOKIE_NAME } from '../helpers/constants';
+import { API_BASE_URL, MEMBER_SESSION_COOKIE_NAME, SEED_SERVICE_NAMES } from '../helpers/constants';
 import { adminTest, test } from '../fixtures/auth';
 
 test.describe('後台權限', () => {
@@ -22,7 +23,7 @@ test.describe('後台權限', () => {
 
     await page.context().addCookies([
       {
-        name: 'booking_session',
+        name: MEMBER_SESSION_COOKIE_NAME,
         value: session.token,
         url: API_BASE_URL,
         httpOnly: true,
@@ -177,7 +178,7 @@ adminTest.describe('後台管理邊界與稽核', () => {
     const serviceName = `E2E Inactive Slot ${runId}`;
     const response = await request.post(`${API_BASE_URL}/api/admin/services`, {
       headers: {
-        Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminSession.token)}`,
+        Cookie: sessionCookieHeader(adminSession.token, 'admin'),
       },
       data: {
         name: serviceName,
@@ -199,7 +200,7 @@ adminTest.describe('後台管理邊界與稽核', () => {
     const serviceName = `E2E Hidden Slot ${runId}`;
     const response = await request.post(`${API_BASE_URL}/api/admin/services`, {
       headers: {
-        Cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(adminSession.token)}`,
+        Cookie: sessionCookieHeader(adminSession.token, 'admin'),
       },
       data: {
         name: serviceName,

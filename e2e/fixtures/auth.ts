@@ -1,6 +1,10 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test';
-import { registerAndLogin, type AuthSession } from '../helpers/api';
-import { API_BASE_URL, SESSION_COOKIE_NAME } from '../helpers/constants';
+import { registerAndLogin, registerAndLoginAdmin, type AuthSession } from '../helpers/api';
+import {
+  ADMIN_SESSION_COOKIE_NAME,
+  API_BASE_URL,
+  MEMBER_SESSION_COOKIE_NAME,
+} from '../helpers/constants';
 
 type RunIdFixture = {
   runId: number;
@@ -18,11 +22,20 @@ type AdminAuthFixtures = {
   adminPage: Page;
 };
 
+type SessionAudience = 'member' | 'admin';
+
 // 將 API session cookie 注入瀏覽器，讓前端 cross-origin fetch 能帶 credentials。
-async function applySessionCookie(context: BrowserContext, token: string): Promise<void> {
+async function applySessionCookie(
+  context: BrowserContext,
+  token: string,
+  audience: SessionAudience,
+): Promise<void> {
+  const cookieName =
+    audience === 'admin' ? ADMIN_SESSION_COOKIE_NAME : MEMBER_SESSION_COOKIE_NAME;
+
   await context.addCookies([
     {
-      name: SESSION_COOKIE_NAME,
+      name: cookieName,
       value: token,
       url: API_BASE_URL,
       httpOnly: true,
@@ -47,7 +60,7 @@ export const memberTest = test.extend<MemberAuthFixtures>({
 
   memberContext: async ({ browser, memberSession }, use) => {
     const context = await browser.newContext();
-    await applySessionCookie(context, memberSession.token);
+    await applySessionCookie(context, memberSession.token, 'member');
     await use(context);
     await context.close();
   },
@@ -63,15 +76,13 @@ export const memberTest = test.extend<MemberAuthFixtures>({
 export const adminTest = test.extend<AdminAuthFixtures>({
   adminSession: async ({ request, runId }, use) => {
     const email = `e2e-admin-${runId}@example.com`;
-    const session = await registerAndLogin(request, email, 'E2E Admin');
-    const { promoteUserToAdmin } = await import('../helpers/api');
-    promoteUserToAdmin(email);
+    const session = await registerAndLoginAdmin(request, email, 'E2E Admin');
     await use(session);
   },
 
   adminContext: async ({ browser, adminSession }, use) => {
     const context = await browser.newContext();
-    await applySessionCookie(context, adminSession.token);
+    await applySessionCookie(context, adminSession.token, 'admin');
     await use(context);
     await context.close();
   },
