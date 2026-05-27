@@ -1,5 +1,7 @@
+import { Suspense } from 'react';
 import { BookingDetailClient } from './booking-detail';
 import { Page } from '@/components/ui/page';
+import { LoadingState } from '@/components/ui/status-state';
 
 type MyBookingDetailPageProps = {
   params: Promise<{
@@ -15,7 +17,10 @@ export default async function MyBookingDetailPage({ params }: MyBookingDetailPag
 
   return (
     <Page>
-      <BookingDetailClient bookingId={bookingId} />
+      {/* useSearchParams 需包在 Suspense 邊界內（Next.js 要求）。 */}
+      <Suspense fallback={<LoadingState title="正在載入預約詳情" description="請稍候。" />}>
+        <BookingDetailClient bookingId={bookingId} />
+      </Suspense>
     </Page>
   );
 }

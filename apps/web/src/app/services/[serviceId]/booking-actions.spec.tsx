@@ -59,7 +59,7 @@ describe('BookingActions', () => {
     });
 
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith('/my/bookings/booking-1');
+      expect(push).toHaveBeenCalledWith('/my/bookings/booking-1?promptCalendar=1');
     });
 
     expect(screen.getByRole('button', { name: '預約' })).toBeEnabled();
@@ -230,7 +230,7 @@ describe('BookingActions', () => {
     await user.click(screen.getByRole('button', { name: '預約' }));
 
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith('/my/bookings/booking-1');
+      expect(push).toHaveBeenCalledWith('/my/bookings/booking-1?promptCalendar=1');
     });
 
     expect(screen.queryByText('只能預約 1 小時後開始的時段。')).not.toBeInTheDocument();

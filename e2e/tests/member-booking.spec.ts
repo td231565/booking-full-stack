@@ -50,6 +50,8 @@ test.describe('會員預約 golden path', () => {
     await page.getByRole('button', { name: '預約' }).first().click();
 
     await expect(page).toHaveURL(/\/my\/bookings\/.+/);
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByText('是否加入日曆')).toBeVisible();
     await expect(page.getByText('狀態：已成立')).toBeVisible();
 
     await page.getByRole('button', { name: '取消預約' }).click();
@@ -354,6 +356,54 @@ memberTest.describe('會員預約邊界與反向流程', () => {
 
     await expect(memberPage.getByRole('heading', { name: '目前不可預約' })).toBeVisible();
     await expect(memberPage.getByRole('button', { name: '預約' })).toHaveCount(0);
+  });
+});
+
+memberTest.describe('日曆整合', () => {
+  memberTest('我的預約列表非 cancelled 列顯示加入日曆', async ({ memberPage, request, runId, memberSession }) => {
+    const adminEmail = `e2e-cal-list-admin-${runId}@example.com`;
+    const adminSession = await registerAndLogin(request, adminEmail, 'Cal List Admin');
+    promoteUserToAdmin(adminEmail);
+
+    const serviceId = await findPublicServiceIdByName(request, SEED_SERVICE_NAMES.active);
+    expect(serviceId).toBeTruthy();
+
+    const slotId = await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 72, 60);
+
+    const created = await request.post(`${API_BASE_URL}/api/bookings`, {
+      headers: {
+        Cookie: `booking_session=${encodeURIComponent(memberSession.token)}`,
+      },
+      data: { availabilitySlotId: slotId },
+    });
+    expect(created.ok()).toBeTruthy();
+
+    await memberPage.goto('/my/bookings');
+
+    await expect(memberPage.getByRole('button', { name: '加入日曆' })).toBeVisible();
+  });
+
+  memberTest('詳情頁常駐加入日曆按鈕', async ({ memberPage, request, runId, memberSession }) => {
+    const adminEmail = `e2e-cal-detail-admin-${runId}@example.com`;
+    const adminSession = await registerAndLogin(request, adminEmail, 'Cal Detail Admin');
+    promoteUserToAdmin(adminEmail);
+
+    const serviceId = await findPublicServiceIdByName(request, SEED_SERVICE_NAMES.active);
+    expect(serviceId).toBeTruthy();
+
+    const slotId = await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 72, 60);
+
+    const created = await request.post(`${API_BASE_URL}/api/bookings`, {
+      headers: {
+        Cookie: `booking_session=${encodeURIComponent(memberSession.token)}`,
+      },
+      data: { availabilitySlotId: slotId },
+    });
+    const bookingId = ((await created.json()) as { data: { id: string } }).data.id;
+
+    await memberPage.goto(`/my/bookings/${bookingId}`);
+
+    await expect(memberPage.getByRole('button', { name: '加入日曆' })).toBeVisible();
   });
 });
 

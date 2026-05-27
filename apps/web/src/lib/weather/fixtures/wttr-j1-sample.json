@@ -1,0 +1,18 @@
+{
+  "weather": [
+    {
+      "date": "2026-06-01",
+      "avgtempC": "28",
+      "maxtempC": "32",
+      "mintempC": "24",
+      "hourly": [
+        {
+          "time": "300",
+          "tempC": "28",
+          "weatherDesc": [{ "value": "晴" }],
+          "chanceofrain": "20"
+        }
+      ]
+    }
+  ]
+}

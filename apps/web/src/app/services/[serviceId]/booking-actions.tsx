@@ -30,7 +30,8 @@ export function BookingActions({ serviceId, slot }: BookingActionsProps) {
     try {
       const response = await createBooking(slot.id, note);
 
-      router.push(`/my/bookings/${response.data.id}`);
+      // 成功後帶 query 觸發詳情頁日曆提示 Dialog。
+      router.push(`/my/bookings/${response.data.id}?promptCalendar=1`);
       router.refresh();
     } catch (error) {
       if (error instanceof ApiClientError && error.code === 'UNAUTHENTICATED') {

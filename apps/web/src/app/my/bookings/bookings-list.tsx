@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AddToCalendarButton } from '@/components/booking/add-to-calendar-button';
 import { BookingStatusBadge } from '@/components/ui/badge';
 import { ButtonLink } from '@/components/ui/button';
 import { ListRow, ListStack } from '@/components/ui/list-row';
@@ -69,9 +70,20 @@ export function BookingsList() {
         {bookings.map((booking) => (
           <ListRow
             actions={
-              <ButtonLink href={`/my/bookings/${booking.id}`} variant="secondary">
-                查看
-              </ButtonLink>
+              <div className="flex flex-wrap gap-2">
+                <AddToCalendarButton
+                  booking={{
+                    id: booking.id,
+                    status: booking.status,
+                    service: { name: booking.service.name },
+                    slot: booking.slot,
+                    note: null,
+                  }}
+                />
+                <ButtonLink href={`/my/bookings/${booking.id}`} variant="secondary">
+                  查看
+                </ButtonLink>
+              </div>
             }
             key={booking.id}
           >

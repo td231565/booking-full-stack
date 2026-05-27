@@ -1,8 +1,10 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { AddToCalendarButton } from '@/components/booking/add-to-calendar-button';
+import { AddToCalendarDialog } from '@/components/booking/add-to-calendar-dialog';
 import { BookingStatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Form, FormError, FormField, TextInput } from '@/components/ui/form';
@@ -12,19 +14,32 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/status-sta
 import { ApiClientError } from '@/lib/api/client';
 import { getApiErrorMessage } from '@/lib/api/error-messages';
 import { BookingDetail, cancelMyBooking, getMyBooking } from '@/lib/bookings/member-bookings';
+import { fetchBookingDayWeather, WeatherFetchError } from '@/lib/weather/fetch-booking-day-weather';
+import { slotStartToTaipeiDate } from '@/lib/weather/slot-start-to-taipei-date';
+import type { BookingDayWeather } from '@/lib/weather/types';
 
 type BookingDetailClientProps = {
   bookingId: string;
 };
 
+type WeatherUiState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'ready'; data: BookingDayWeather | null }
+  | { status: 'error'; message: string };
+
 // 顯示目前登入會員自己的預約詳情與取消入口。
 export function BookingDetailClient({ bookingId }: BookingDetailClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [reason, setReason] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showCalendarPrompt, setShowCalendarPrompt] = useState(false);
+  const [weatherState, setWeatherState] = useState<WeatherUiState>({ status: 'idle' });
+  const hasHandledCalendarPrompt = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -59,6 +74,58 @@ export function BookingDetailClient({ bookingId }: BookingDetailClientProps) {
       isMounted = false;
     };
   }, [bookingId, router]);
+
+  // 預約成功導向時帶 promptCalendar=1，載入完成後開 Dialog 並清除 query 避免重複彈窗。
+  useEffect(() => {
+    if (isLoading || !booking || hasHandledCalendarPrompt.current) {
+      return;
+    }
+
+    if (searchParams.get('promptCalendar') !== '1' || booking.status === 'cancelled') {
+      return;
+    }
+
+    hasHandledCalendarPrompt.current = true;
+    setShowCalendarPrompt(true);
+    router.replace(`/my/bookings/${bookingId}`, { scroll: false });
+  }, [booking, bookingId, isLoading, router, searchParams]);
+
+  // 預約詳情載入後向 /api/weather 取得當日天氣（依 slot 的台北日期）。
+  useEffect(() => {
+    if (!booking) {
+      return;
+    }
+
+    let isMounted = true;
+    const date = slotStartToTaipeiDate(booking.slot.startAt);
+
+    async function loadWeather() {
+      setWeatherState({ status: 'loading' });
+
+      try {
+        const data = await fetchBookingDayWeather(date);
+
+        if (isMounted) {
+          setWeatherState({ status: 'ready', data });
+        }
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        const message =
+          error instanceof WeatherFetchError ? error.message : '暫時無法取得天氣，請稍後再試。';
+
+        setWeatherState({ status: 'error', message });
+      }
+    }
+
+    void loadWeather();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [booking]);
 
   // 送出取消預約請求，成功後重新載入詳情以呈現最新狀態。
   async function handleCancel(event: FormEvent<HTMLFormElement>) {
@@ -101,10 +168,26 @@ export function BookingDetailClient({ bookingId }: BookingDetailClientProps) {
     return <EmptyState title="找不到預約" description="此預約不存在或不屬於目前登入會員。" />;
   }
 
+  const calendarBooking = {
+    id: booking.id,
+    status: booking.status,
+    service: { name: booking.service.name },
+    slot: booking.slot,
+    note: booking.note,
+  };
+
   return (
     <Panel>
+      <AddToCalendarDialog
+        booking={calendarBooking}
+        onOpenChange={setShowCalendarPrompt}
+        open={showCalendarPrompt}
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-ink">預約詳情</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold text-ink">預約詳情</h1>
+          <AddToCalendarButton booking={calendarBooking} />
+        </div>
         <BookingStatusBadge status={booking.status} />
       </div>
       <dl className="mt-6 space-y-4 text-sm">
@@ -115,6 +198,10 @@ export function BookingDetailClient({ bookingId }: BookingDetailClientProps) {
         <div>
           <dt className="font-medium text-ink-muted">時間</dt>
           <dd className="mt-1 text-ink">{formatDateTime(booking.slot.startAt)}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-ink-muted">當日天氣</dt>
+          <dd className="mt-1 text-ink">{renderBookingWeather(weatherState)}</dd>
         </div>
         <div>
           <dt className="font-medium text-ink-muted">備註</dt>
@@ -182,6 +269,33 @@ function getCancelErrorMessage(error: unknown): string {
   }
 
   return '系統暫時無法處理請求。';
+}
+
+// 依天氣載入狀態渲染當日天氣區塊（不影響預約主資訊）。
+function renderBookingWeather(state: WeatherUiState) {
+  if (state.status === 'idle' || state.status === 'loading') {
+    return <p className="text-ink-muted">正在載入天氣...</p>;
+  }
+
+  if (state.status === 'error') {
+    return (
+      <Notice variant="info">{state.message}</Notice>
+    );
+  }
+
+  if (state.data === null) {
+    return <Notice variant="info">目前僅提供近 3 日天氣預報，請出發前再查看。</Notice>;
+  }
+
+  return (
+    <div className="space-y-1">
+      <p>
+        {state.data.condition}，平均 {state.data.avgTempC}°C（{state.data.minTempC}–{state.data.maxTempC}°C）
+      </p>
+      {state.data.chanceOfRain !== null ? <p className="text-ink-muted">降雨機率 {state.data.chanceOfRain}%</p> : null}
+      <p className="text-ink-muted">{state.data.locationLabel}</p>
+    </div>
+  );
 }
 
 // 格式化預約時間，讓詳情頁以台灣常見日期時間呈現。
