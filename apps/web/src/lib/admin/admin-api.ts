@@ -99,10 +99,11 @@ export async function getAdminAuditLogs(options?: AdminFetchOptions): Promise<Ap
   });
 }
 
-// 依日期範圍取得預約列表（Client Component 用，不帶 cookieHeader）。
+// 依日期範圍取得預約列表，供 Server Component (帶 cookie) 或 Client Component 使用。
 export async function getAdminBookingsByDateRange(
   from: string,
   to: string,
+  options?: AdminFetchOptions,
 ): Promise<ApiListResponse<AdminBooking>> {
   const params = new URLSearchParams({
     from,
@@ -112,6 +113,7 @@ export async function getAdminBookingsByDateRange(
   });
   return apiFetch<ApiListResponse<AdminBooking>>(`/api/admin/bookings?${params.toString()}`, {
     cache: 'no-store',
+    headers: toCookieHeader(options),
   });
 }
 

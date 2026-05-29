@@ -19,7 +19,9 @@ export default async function AdminBookingsPage({ searchParams }: PageProps) {
   const { from, to } = getMonthDateRange(currentMonth);
 
   try {
-    const response = await getAdminBookingsByDateRange(from, to);
+    const response = await getAdminBookingsByDateRange(from, to, {
+      cookieHeader: (await cookies()).toString(),
+    });
 
     return (
       <Page className="max-w-6xl">
