@@ -16,10 +16,10 @@ todos:
     status: completed
   - id: test-frontend-api-functions
     content: "[TDD-Red] 前端：新增 admin-api.spec.ts，用 MSW 測試 create / update / cancel / lookupUser / getAvailableSlots 函式"
-    status: pending
+    status: completed
   - id: frontend-api-functions
     content: "[TDD-Green] 前端：在 admin-api.ts 實作上述函式，使測試通過"
-    status: pending
+    status: completed
   - id: frontend-calendar-component
     content: 前端：安裝 react-day-picker，建立 apps/web/src/components/ui/calendar.tsx
     status: pending

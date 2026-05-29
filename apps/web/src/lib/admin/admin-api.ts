@@ -99,6 +99,22 @@ export async function getAdminAuditLogs(options?: AdminFetchOptions): Promise<Ap
   });
 }
 
+// 依日期範圍取得預約列表（Client Component 用，不帶 cookieHeader）。
+export async function getAdminBookingsByDateRange(
+  from: string,
+  to: string,
+): Promise<ApiListResponse<AdminBooking>> {
+  const params = new URLSearchParams({
+    from,
+    to,
+    page: '1',
+    pageSize: '100', // 日曆視圖通常一次抓一個月，給較大 pageSize
+  });
+  return apiFetch<ApiListResponse<AdminBooking>>(`/api/admin/bookings?${params.toString()}`, {
+    cache: 'no-store',
+  });
+}
+
 // 建立後台服務，供後續表單 action 或手動測試重用。
 export async function createAdminService(input: {
   name: string;
@@ -111,6 +127,73 @@ export async function createAdminService(input: {
   return apiFetch<ApiSuccessResponse<AdminService>>('/api/admin/services', {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+}
+
+// Admin 替會員建立預約（Client Component 用，不帶 cookieHeader）。
+export async function createAdminBooking(input: {
+  userId: string;
+  availabilitySlotId: string;
+  note?: string;
+}): Promise<ApiSuccessResponse<AdminBooking>> {
+  return apiFetch<ApiSuccessResponse<AdminBooking>>('/api/admin/bookings', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+// Admin 更新預約備註或改期。
+export async function updateAdminBooking(
+  bookingId: string,
+  input: { note?: string; availabilitySlotId?: string },
+): Promise<ApiSuccessResponse<AdminBooking>> {
+  return apiFetch<ApiSuccessResponse<AdminBooking>>(`/api/admin/bookings/${bookingId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+// Admin 取消預約。
+export async function cancelAdminBooking(
+  bookingId: string,
+  input?: { reason?: string },
+): Promise<ApiSuccessResponse<AdminBooking>> {
+  return apiFetch<ApiSuccessResponse<AdminBooking>>(`/api/admin/bookings/${bookingId}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify(input || {}),
+  });
+}
+
+// 依 email 查詢 active 會員，供新增預約 dialog 使用。
+export async function lookupAdminUserByEmail(email: string): Promise<
+  ApiSuccessResponse<{
+    id: string;
+    email: string;
+    displayName: string;
+  }>
+> {
+  const params = new URLSearchParams({ email });
+  return apiFetch<
+    ApiSuccessResponse<{
+      id: string;
+      email: string;
+      displayName: string;
+    }>
+  >(`/api/admin/users/lookup?${params.toString()}`, {
+    cache: 'no-store',
+  });
+}
+
+// 查詢指定服務的 available 時段，供改期與新增預約選擇。
+export async function getAdminAvailableSlots(serviceId: string): Promise<ApiListResponse<AdminAvailabilitySlot>> {
+  const params = new URLSearchParams({
+    serviceId,
+    status: 'available',
+    page: '1',
+    pageSize: '50',
+  });
+  return apiFetch<ApiListResponse<AdminAvailabilitySlot>>(`/api/admin/availability-slots?${params.toString()}`, {
+    cache: 'no-store',
   });
 }
 
