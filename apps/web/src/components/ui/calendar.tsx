@@ -39,10 +39,10 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         day_button: cn(
           buttonBase,
           ghostVariant,
-          'h-9 w-9 p-0 font-normal aria-selected:opacity-100',
+          'h-9 w-9 p-0 font-normal aria-selected:opacity-100 aria-selected:!text-elevated aria-selected:bg-accent',
         ),
         selected:
-          'bg-accent text-elevated hover:bg-accent-hover focus:bg-accent focus:text-elevated',
+          'bg-accent text-elevated hover:bg-accent-hover focus:bg-accent focus:text-elevated !text-elevated [&_button]:!text-elevated',
         today: 'bg-accent-soft text-accent',
         outside:
           'day-outside text-ink-muted opacity-50 aria-selected:bg-accent-soft aria-selected:text-accent aria-selected:opacity-30',
