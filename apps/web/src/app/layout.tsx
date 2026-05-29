@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Sans, Noto_Sans_TC, Geist } from 'next/font/google';
 import { SiteHeader } from '@/components/site-header';
+import { HydrationWrapper } from '@/components/hydration-wrapper';
 import './globals.css';
 import { cn } from "@/lib/utils";
 
@@ -30,12 +31,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html className={cn(ibmPlexSans.variable, notoSansTC.variable, "font-sans", geist.variable)} lang="zh-Hant-TW">
-      <body className="min-h-screen">
-        <div className="flex min-h-screen flex-col">
-          <SiteHeader />
-          <div className="flex-1">{children}</div>
-        </div>
+    <html lang="zh-Hant-TW">
+      <body className={cn("min-h-screen font-sans", ibmPlexSans.variable, notoSansTC.variable, geist.variable)}>
+        <HydrationWrapper>
+          <div className="flex min-h-screen flex-col">
+            <SiteHeader />
+            <div className="flex-1">{children}</div>
+          </div>
+        </HydrationWrapper>
       </body>
     </html>
   );
