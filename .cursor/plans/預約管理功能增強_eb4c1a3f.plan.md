@@ -28,7 +28,7 @@ todos:
     status: completed
   - id: frontend-calendar-view
     content: 前端：建立 bookings-calendar.tsx（Client Component），日曆月份切換 + 日期預約列表 + 指示點
-    status: pending
+    status: completed
   - id: test-frontend-dialogs
     content: "[TDD-Red] 前端：為四個 dialog 元件各寫 Testing Library 測試（submit flow、error state）"
     status: pending
