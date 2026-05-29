@@ -8,6 +8,10 @@ import { AdminBooking } from '@/lib/admin/admin-api';
 import { Button } from '@/components/ui/button';
 import { BookingStatusBadge } from '@/components/ui/badge';
 import { Panel } from '@/components/ui/page';
+import { CreateBookingDialog } from './create-booking-dialog';
+import { UpdateNoteDialog } from './update-note-dialog';
+import { EditBookingDialog } from './edit-booking-dialog';
+import { CancelBookingDialog } from './cancel-booking-dialog';
 
 interface BookingsCalendarProps {
   initialBookings: AdminBooking[];
@@ -26,6 +30,13 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
   });
 
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
+
+  // Dialog 狀態
+  const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+  const [editingBooking, setEditingBooking] = React.useState<AdminBooking | null>(null);
+  const [isNoteOpen, setIsNoteOpen] = React.useState(false);
+  const [isEditOpen, setIsEditOpen] = React.useState(false);
+  const [isCancelOpen, setIsCancelOpen] = React.useState(false);
 
   // 當月份切換時，更新 URL 讓 Server Component 重新抓取資料
   const handleMonthChange = (newMonth: Date) => {
@@ -55,7 +66,7 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
         <Panel className="flex flex-col items-center">
           <div className="mb-4 flex w-full items-center justify-between px-2">
             <h2 className="font-semibold text-ink">預約日曆</h2>
-            <Button size="sm">新增預約</Button>
+            <Button size="sm" onClick={() => setIsCreateOpen(true)}>新增預約</Button>
           </div>
           <Calendar
             mode="single"
@@ -94,9 +105,39 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
                     <BookingStatusBadge status={booking.status} />
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <Button variant="secondary" size="sm">修改</Button>
-                    <Button variant="secondary" size="sm">改期</Button>
-                    <Button variant="ghost" size="sm" className="text-red-500">取消</Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setEditingBooking(booking);
+                        setIsNoteOpen(true);
+                      }}
+                    >
+                      修改備註
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setEditingBooking(booking);
+                        setIsEditOpen(true);
+                      }}
+                      disabled={booking.status !== 'confirmed'}
+                    >
+                      改期
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-500"
+                      onClick={() => {
+                        setEditingBooking(booking);
+                        setIsCancelOpen(true);
+                      }}
+                      disabled={booking.status === 'cancelled'}
+                    >
+                      取消
+                    </Button>
                   </div>
                 </li>
               ))}
@@ -106,6 +147,29 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
           )}
         </Panel>
       </div>
+
+      {/* Dialogs */}
+      <CreateBookingDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
+      
+      {editingBooking && (
+        <>
+          <UpdateNoteDialog
+            booking={editingBooking}
+            open={isNoteOpen}
+            onOpenChange={setIsNoteOpen}
+          />
+          <EditBookingDialog
+            booking={editingBooking}
+            open={isEditOpen}
+            onOpenChange={setIsEditOpen}
+          />
+          <CancelBookingDialog
+            bookingId={editingBooking.id}
+            open={isCancelOpen}
+            onOpenChange={setIsCancelOpen}
+          />
+        </>
+      )}
     </div>
   );
 }

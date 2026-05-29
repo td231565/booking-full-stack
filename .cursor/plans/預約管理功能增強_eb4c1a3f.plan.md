@@ -31,10 +31,10 @@ todos:
     status: completed
   - id: test-frontend-dialogs
     content: "[TDD-Red] 前端：為四個 dialog 元件各寫 Testing Library 測試（submit flow、error state）"
-    status: pending
+    status: completed
   - id: frontend-dialogs
     content: "[TDD-Green] 前端：實作 create / update-note / edit（改期）/ cancel 四個 dialog 元件，使測試通過"
-    status: pending
+    status: completed
 isProject: false
 ---
 
