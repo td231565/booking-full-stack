@@ -58,6 +58,11 @@ describe('RegisterForm', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '註冊中...' })).toBeDisabled();
     });
+
+    // 等待結束避免影響下一個測試。
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '註冊' })).toBeEnabled();
+    });
   });
 
   // EMAIL_ALREADY_USED 應顯示穩定註冊錯誤文案。

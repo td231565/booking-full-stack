@@ -718,7 +718,44 @@ GET /api/admin/audit-logs?page=1&pageSize=20
 - 不在公開頁注入 currentUser 私人資料
 - 不將 session token 暴露給 Client Component
 
-## 13. 暫不納入 MVP
+## 13. 擴充功能：日曆與天氣 (MVP+)
+
+### 13.1 .ics 日曆匯入
+
+用途：
+
+- 讓會員將預約行程加入裝置日曆（iOS, Android, Google, Outlook, macOS）
+- 提供穩定的 `.ics` 檔案下載，不依賴特定平台 API
+
+串接流程：
+
+- **預約成功自動提示**：導向詳情頁時帶 `?promptCalendar=1`，顯示 Dialog 詢問是否加入。
+- **列表與詳情手動加入**：提供「加入日曆」按鈕，點擊即觸發下載。
+- **Dialog 文案**：使用中性說明：「下載行程檔後，請以裝置上的日曆 App 開啟並加入。」以相容各平台操作差異。
+
+技術實作：
+
+- 使用 `Blob` (type: `text/calendar;charset=utf-8`) 觸發下載。
+- 遵循 RFC 5545 標準，使用 CRLF 換行提升 Windows 相容性。
+
+### 13.2 預約當日天氣 (wttr.in)
+
+用途：
+
+- 在預約詳情頁顯示預約當日的天氣概況，輔助會員規劃行程。
+
+串接 API：
+
+- `GET /api/weather?date=YYYY-MM-DD`
+- 代理至 `https://wttr.in/{LOCATION}?format=j1`
+
+規則與限制：
+
+- **3 日限制**：wttr.in 免費 API 僅提供近 3 日預報。若預約日期超出範圍，顯示 Notice：「目前僅提供近 3 日天氣預報，請出發前再查看。」
+- **優雅降級**：若天氣 API 失敗，僅顯示提示文案，不影響預約詳情主資訊呈現。
+- **快取**：Route Handler 設有短時間快取（如 30 分鐘）以減輕外部 API 負擔。
+
+## 14. 暫不納入 MVP
 
 - 圖片上傳 UI
 - 預約改期 UI
