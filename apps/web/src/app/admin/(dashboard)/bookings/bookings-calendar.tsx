@@ -29,7 +29,12 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
     return new Date(year, m - 1, 1);
   });
 
-  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(undefined);
+  const [filterStatus, setFilterStatus] = React.useState<'general' | 'cancelled'>('general');
+
+  React.useEffect(() => {
+    setSelectedDate(new Date());
+  }, []);
 
   // Dialog 狀態
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
@@ -47,11 +52,20 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  // 取得選中日期的預約
-  const selectedBookings = React.useMemo(() => {
+  // 取得選中日期且符合過濾條件的預約
+  const filteredBookings = React.useMemo(() => {
     if (!selectedDate) return [];
-    return initialBookings.filter((b) => isSameDay(parseISO(b.slot.startAt), selectedDate));
-  }, [initialBookings, selectedDate]);
+    
+    return initialBookings.filter((b) => {
+      const isDateMatch = isSameDay(parseISO(b.slot.startAt), selectedDate);
+      if (!isDateMatch) return false;
+
+      if (filterStatus === 'cancelled') {
+        return b.status === 'cancelled';
+      }
+      return b.status !== 'cancelled';
+    });
+  }, [initialBookings, selectedDate, filterStatus]);
 
   // 修飾符：標示有預約的日期
   const modifiers = React.useMemo(() => {
@@ -85,15 +99,39 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
       {/* 右側預約列表 */}
       <div className="flex-1">
         <Panel>
-          <div className="mb-4 border-b border-border pb-2">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b border-border pb-2">
             <h2 className="font-semibold text-ink">
               {selectedDate ? format(selectedDate, 'yyyy年MM月dd日') : '請選擇日期'} 的預約
             </h2>
+            <div className="flex rounded-md bg-surface p-1">
+              <button
+                className={`rounded-md px-3 py-1 text-sm font-medium transition-all ${
+                  filterStatus === 'general'
+                    ? 'bg-elevated text-ink shadow-sm'
+                    : 'text-ink-muted hover:text-ink'
+                }`}
+                onClick={() => setFilterStatus('general')}
+                type="button"
+              >
+                一般
+              </button>
+              <button
+                className={`rounded-md px-3 py-1 text-sm font-medium transition-all ${
+                  filterStatus === 'cancelled'
+                    ? 'bg-elevated text-ink shadow-sm'
+                    : 'text-ink-muted hover:text-ink'
+                }`}
+                onClick={() => setFilterStatus('cancelled')}
+                type="button"
+              >
+                已取消
+              </button>
+            </div>
           </div>
 
-          {selectedBookings.length > 0 ? (
+          {filteredBookings.length > 0 ? (
             <ul className="space-y-4">
-              {selectedBookings.map((booking) => (
+              {filteredBookings.map((booking) => (
                 <li key={booking.id} className="rounded-md border border-border p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -172,9 +210,4 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
       )}
     </div>
   );
-}
-
-// 暫時定義按鈕 size props，若 Button 元件尚未支援則會被忽略。
-interface ButtonProps {
-  size?: 'sm' | 'md' | 'lg';
 }

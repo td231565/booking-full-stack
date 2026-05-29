@@ -26,14 +26,27 @@ const sampleBookings: AdminBooking[] = [
   },
   {
     id: 'b2',
-    status: 'confirmed',
-    note: '預約 2',
+    status: 'cancelled',
+    note: '已取消預約',
+    cancelledAt: '2026-05-02T00:00:00Z',
+    cancelledBy: 'user',
+    cancelReason: '不要了',
+    user: { id: 'u2', email: 'u2@ex.com', displayName: 'User 2' },
+    service: { id: 's1', name: 'Service A' },
+    slot: { id: 'sl1', startAt: '2026-06-15T14:00:00Z', endAt: '2026-06-15T15:00:00Z' },
+    createdAt: '2026-05-01T00:00:00Z',
+    updatedAt: '2026-05-01T00:00:00Z',
+  },
+  {
+    id: 'b3',
+    status: 'pending' as any,
+    note: '待確認預約',
     cancelledAt: null,
     cancelledBy: null,
     cancelReason: null,
-    user: { id: 'u2', email: 'u2@ex.com', displayName: 'User 2' },
+    user: { id: 'u3', email: 'u3@ex.com', displayName: 'User 3' },
     service: { id: 's1', name: 'Service A' },
-    slot: { id: 'sl2', startAt: '2026-06-16T10:00:00Z', endAt: '2026-06-16T11:00:00Z' },
+    slot: { id: 'sl1', startAt: '2026-06-15T12:00:00Z', endAt: '2026-06-15T13:00:00Z' },
     createdAt: '2026-05-01T00:00:00Z',
     updatedAt: '2026-05-01T00:00:00Z',
   },
@@ -55,17 +68,47 @@ describe('BookingsCalendar', () => {
     expect(screen.getByRole('button', { name: /新增預約/i })).toBeInTheDocument();
   });
 
-  it('選中特定日期時應顯示該日的預約列表', () => {
+  it('預約列表應包含「一般」與「已取消」分頁，且預設顯示一般', () => {
     render(<BookingsCalendar initialBookings={sampleBookings} month="2026-06" />);
     
-    // 尋找文字為 15 的日曆單元格並點擊
-    const day15 = screen.getAllByText('15').find(el => el.closest('table'));
-    if (day15) {
-      fireEvent.click(day15);
-    }
+    // 預設應該在「一般」分頁
+    expect(screen.getByRole('button', { name: '一般' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '已取消' })).toBeInTheDocument();
     
+    // 選中 15 號
+    const day15 = screen.getAllByText('15').find(el => el.closest('table'));
+    if (day15) fireEvent.click(day15);
+
+    // 一般分頁應看到 confirmed，不應看到 cancelled
     expect(screen.getByText(/User 1/i)).toBeInTheDocument();
     expect(screen.queryByText(/User 2/i)).not.toBeInTheDocument();
+  });
+
+  it('在「一般」分頁中，應顯示除了已取消（cancelled）以外的所有預約單（如 pending 等非取消狀態）', () => {
+    render(<BookingsCalendar initialBookings={sampleBookings} month="2026-06" />);
+    
+    // 選中 15 號
+    const day15 = screen.getAllByText('15').find(el => el.closest('table'));
+    if (day15) fireEvent.click(day15);
+
+    // 一般分頁應看到 confirmed (User 1) 與 pending (User 3)
+    expect(screen.getByText(/User 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/User 3/i)).toBeInTheDocument();
+    expect(screen.queryByText(/User 2/i)).not.toBeInTheDocument();
+  });
+
+  it('切換至「已取消」分頁時應顯示已取消預約', async () => {
+    render(<BookingsCalendar initialBookings={sampleBookings} month="2026-06" />);
+    
+    const day15 = screen.getAllByText('15').find(el => el.closest('table'));
+    if (day15) fireEvent.click(day15);
+
+    const cancelledTab = screen.getByRole('button', { name: '已取消' });
+    fireEvent.click(cancelledTab);
+
+    // 已取消分頁應看到 User 2 (cancelled)，不應看到 User 1 (confirmed)
+    expect(screen.getByText(/User 2/i)).toBeInTheDocument();
+    expect(screen.queryByText(/User 1/i)).not.toBeInTheDocument();
   });
 
   it('切換月份時應呼叫 router.push 更新 URL', () => {
