@@ -2,19 +2,33 @@ import { cookies } from 'next/headers';
 import { BookingStatusBadge } from '@/components/ui/badge';
 import { Page, PageHeader, Panel } from '@/components/ui/page';
 import { EmptyState, ErrorState } from '@/components/ui/status-state';
-import { AdminBooking, getAdminBookings } from '@/lib/admin/admin-api';
+import { AdminBooking, getAdminBookingsByDateRange } from '@/lib/admin/admin-api';
 import { getAdminErrorMessage } from '@/lib/api/error-messages';
+import { getMonthDateRange } from '@/lib/admin/admin-date-utils';
 
 export const dynamic = 'force-dynamic';
 
+type PageProps = {
+  searchParams: Promise<{ month?: string }>;
+};
+
 // 顯示後台預約列表，Admin 可查看所有會員預約。
-export default async function AdminBookingsPage() {
+export default async function AdminBookingsPage({ searchParams }: PageProps) {
+  const { month } = await searchParams;
+  const { from, to } = getMonthDateRange(month);
+
   try {
-    const response = await getAdminBookings({ cookieHeader: (await cookies()).toString() });
+    const response = await getAdminBookingsByDateRange(from, to);
 
     return (
       <Page className="max-w-5xl">
         <PageHeader description="可透過 Admin API 替會員建立、更新備註與取消預約。" title="預約管理" />
+
+        <div className="mb-6 rounded-lg bg-elevated p-4 shadow-sm border border-border">
+          <p className="text-sm text-ink-muted">
+            顯示範圍：{new Date(from).toLocaleDateString('zh-TW')} 至 {new Date(to).toLocaleDateString('zh-TW')}
+          </p>
+        </div>
 
         {response.data.length > 0 ? (
           <ul className="flex flex-col gap-4">

@@ -22,10 +22,10 @@ todos:
     status: completed
   - id: frontend-calendar-component
     content: 前端：安裝 react-day-picker，建立 apps/web/src/components/ui/calendar.tsx
-    status: pending
+    status: completed
   - id: frontend-page-update
     content: 前端：更新 page.tsx 讀取 ?month searchParam，帶 from/to 呼叫 API
-    status: pending
+    status: completed
   - id: frontend-calendar-view
     content: 前端：建立 bookings-calendar.tsx（Client Component），日曆月份切換 + 日期預約列表 + 指示點
     status: pending
