@@ -133,6 +133,10 @@ export class UpdateAdminBookingDto {
   @IsString()
   @MaxLength(1000)
   note?: string;
+
+  @IsOptional()
+  @IsUUID()
+  availabilitySlotId?: string;
 }
 
 export class CancelAdminBookingDto {

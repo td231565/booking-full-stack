@@ -93,6 +93,13 @@ type BookingForAdminCancel = {
   endAt: Date;
 };
 
+type BookingForAdminReschedule = {
+  id: string;
+  status: AdminBookingStatus;
+  serviceId: string;
+  availabilitySlotId: string;
+};
+
 @Injectable()
 export class AdminRepository {
   // 注入 DataSource，集中封裝後台服務、時段、預約與 audit log 的 SQL 操作。
@@ -495,6 +502,28 @@ export class AdminRepository {
     return rows[0]?.exists ?? false;
   }
 
+  // 改期時排除自身 booking，避免舊時段佔用導致新時段誤判為已滿。
+  async hasActiveBookingForSlotExcludingBooking(
+    queryRunner: QueryRunner,
+    slotId: string,
+    excludeBookingId: string,
+  ): Promise<boolean> {
+    const rows = (await queryRunner.query(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM bookings
+          WHERE availability_slot_id = $1
+            AND status <> 'cancelled'
+            AND id <> $2
+        ) AS "exists"
+      `,
+      [slotId, excludeBookingId],
+    )) as Array<{ exists: boolean }>;
+
+    return rows[0]?.exists ?? false;
+  }
+
   // Admin 建立 confirmed booking，userId 來自後台 request body。
   async insertAdminBooking(
     queryRunner: QueryRunner,
@@ -522,7 +551,43 @@ export class AdminRepository {
     return this.firstQueryRunnerRow(rows);
   }
 
-  // Admin 更新預約備註，MVP 不提供改期或手動狀態更新。
+  // 鎖定預約供 Admin 改期，需取得目前 service 與 slot 供驗證與 audit metadata。
+  async findBookingForAdminReschedule(queryRunner: QueryRunner, bookingId: string): Promise<BookingForAdminReschedule | null> {
+    const rows = (await queryRunner.query(
+      `
+        SELECT
+          b.id,
+          b.status,
+          b.service_id AS "serviceId",
+          b.availability_slot_id AS "availabilitySlotId"
+        FROM bookings b
+        WHERE b.id = $1
+        FOR UPDATE OF b
+      `,
+      [bookingId],
+    )) as BookingForAdminReschedule[];
+
+    return rows[0] ?? null;
+  }
+
+  // 更新預約綁定的時段與服務，改期時新 slot 可能對應不同 service_id。
+  async updateBookingSlot(
+    queryRunner: QueryRunner,
+    bookingId: string,
+    serviceId: string,
+    availabilitySlotId: string,
+  ): Promise<void> {
+    await queryRunner.query(
+      `
+        UPDATE bookings
+        SET service_id = $2, availability_slot_id = $3, updated_at = now()
+        WHERE id = $1
+      `,
+      [bookingId, serviceId, availabilitySlotId],
+    );
+  }
+
+  // Admin 更新預約備註。
   async updateBookingNote(bookingId: string, note: string | null): Promise<AdminBookingRecord | null> {
     const rows = await this.dataSource.query<Array<{ id: string }>>(
       `

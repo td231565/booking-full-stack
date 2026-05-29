@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: backend-reschedule
     content: "[TDD-Green] 後端：擴充 UpdateAdminBookingDto + updateBooking service + repository，使測試通過"
-    status: pending
+    status: completed
   - id: test-frontend-api-functions
     content: "[TDD-Red] 前端：新增 admin-api.spec.ts，用 MSW 測試 create / update / cancel / lookupUser / getAvailableSlots 函式"
     status: pending

@@ -406,8 +406,21 @@ export class AdminService {
     }
   }
 
-  // Admin 只可更新預約 note，MVP 不提供手動狀態更新或改期 API。
-  async updateBooking(bookingId: string, note: string | undefined, audit: AuditContext): Promise<AdminBookingRecord> {
+  // Admin 可更新預約備註，或改期至同服務的可用時段。
+  async updateBooking(
+    bookingId: string,
+    updates: { note?: string; availabilitySlotId?: string },
+    audit: AuditContext,
+  ): Promise<AdminBookingRecord> {
+    if (updates.availabilitySlotId) {
+      return this.rescheduleBooking(bookingId, updates.availabilitySlotId, audit);
+    }
+
+    return this.updateBookingNoteOnly(bookingId, updates.note, audit);
+  }
+
+  // 僅更新備註，寫入 admin.booking.update audit log。
+  private async updateBookingNoteOnly(bookingId: string, note: string | undefined, audit: AuditContext): Promise<AdminBookingRecord> {
     const before = await this.adminRepository.findBookingById(bookingId);
 
     if (!before) {
@@ -438,6 +451,84 @@ export class AdminService {
     );
 
     return updated;
+  }
+
+  // 將 confirmed 預約改期至同服務可用時段，並寫入 admin.booking.reschedule audit log。
+  private async rescheduleBooking(bookingId: string, availabilitySlotId: string, audit: AuditContext): Promise<AdminBookingRecord> {
+    const queryRunner = this.adminRepository.createQueryRunner();
+
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const booking = await this.adminRepository.findBookingForAdminReschedule(queryRunner, bookingId);
+
+      if (!booking) {
+        throw new ApiException(404, 'BOOKING_NOT_FOUND', '預約不存在');
+      }
+
+      if (booking.status !== 'confirmed') {
+        throw new ApiException(409, 'BOOKING_NOT_RESCHEDULABLE', '預約狀態不可改期');
+      }
+
+      const slot = await this.adminRepository.findSlotForAdminBooking(queryRunner, availabilitySlotId);
+
+      if (!slot) {
+        throw new ApiException(404, 'BOOKING_SLOT_NOT_FOUND', '時段不存在');
+      }
+
+      if (slot.serviceId !== booking.serviceId) {
+        throw new ApiException(409, 'BOOKING_SLOT_UNAVAILABLE', '此時段目前不可預約');
+      }
+
+      if (slot.serviceStatus !== 'active') {
+        throw new ApiException(409, 'SERVICE_NOT_ACTIVE', '服務不是啟用狀態');
+      }
+
+      if (slot.slotStatus !== 'available') {
+        throw new ApiException(409, 'BOOKING_SLOT_UNAVAILABLE', '此時段目前不可預約');
+      }
+
+      if (await this.adminRepository.hasActiveBookingForSlotExcludingBooking(queryRunner, availabilitySlotId, bookingId)) {
+        throw new ApiException(409, 'BOOKING_SLOT_UNAVAILABLE', '此時段目前不可預約');
+      }
+
+      const previousSlotId = booking.availabilitySlotId;
+
+      await this.adminRepository.updateBookingSlot(queryRunner, bookingId, slot.serviceId, availabilitySlotId);
+      await this.adminRepository.insertAuditLogInTransaction(
+        queryRunner,
+        audit.actorUserId,
+        'admin.booking.reschedule',
+        'booking',
+        bookingId,
+        {
+          before: { availabilitySlotId: previousSlotId },
+          after: { availabilitySlotId },
+        },
+        audit.ipAddress,
+        audit.userAgent,
+      );
+      await queryRunner.commitTransaction();
+
+      const updated = await this.adminRepository.findBookingById(bookingId);
+
+      if (!updated) {
+        throw new ApiException(404, 'BOOKING_NOT_FOUND', '預約不存在');
+      }
+
+      return updated;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+
+      if (this.isUniqueViolation(error)) {
+        throw new ApiException(409, 'BOOKING_SLOT_UNAVAILABLE', '此時段目前不可預約');
+      }
+
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   // Admin 可取消任意 confirmed 且尚未 completed 的預約，不受會員 4 小時限制。

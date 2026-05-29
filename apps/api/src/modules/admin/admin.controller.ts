@@ -161,11 +161,15 @@ export class AdminController {
     return successResponse(booking);
   }
 
-  // Admin 更新預約備註；MVP 不提供手動狀態更新。
+  // Admin 更新預約備註或改期。
   @Patch('bookings/:bookingId')
   async updateBooking(@Req() request: Request, @Param('bookingId') bookingId: string, @Body() body: UpdateAdminBookingDto) {
     const admin = await this.requireAdmin(request);
-    const booking = await this.adminService.updateBooking(bookingId, body.note, this.toAuditContext(request, admin.id));
+    const booking = await this.adminService.updateBooking(
+      bookingId,
+      { note: body.note, availabilitySlotId: body.availabilitySlotId },
+      this.toAuditContext(request, admin.id),
+    );
 
     return successResponse(booking);
   }
