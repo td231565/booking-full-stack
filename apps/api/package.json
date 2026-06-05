@@ -4,7 +4,7 @@
   "scripts": {
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
-    "prebuild": "rm -rf dist",
+    "prebuild": "rm -rf dist tsconfig.tsbuildinfo tsconfig.build.tsbuildinfo",
     "build": "nest build",
     "typecheck": "tsc --noEmit",
     "migration:run": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:run",

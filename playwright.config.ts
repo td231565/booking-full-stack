@@ -17,6 +17,7 @@ export default defineConfig({
   },
   use: {
     baseURL: webBaseUrl,
+    timezoneId: 'Asia/Taipei',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

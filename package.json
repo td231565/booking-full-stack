@@ -3,23 +3,27 @@
   "private": true,
   "workspaces": [
     "apps/api",
-    "apps/web"
+    "apps/web-next",
+    "apps/web-angular"
   ],
   "scripts": {
     "dev:api": "bun --filter @booking-scheduler/api start:dev",
-    "dev:web": "bun --filter @booking-scheduler/web dev",
-    "build": "bun --filter @booking-scheduler/api build && bun --filter @booking-scheduler/web build",
-    "typecheck": "bun --filter @booking-scheduler/api typecheck && bun --filter @booking-scheduler/web typecheck",
+    "dev:next": "bun --filter @booking-scheduler/web-next dev",
+    "dev:angular": "bun --filter @booking-scheduler/web-angular start",
+    "build": "bun --filter @booking-scheduler/api build && bun --filter @booking-scheduler/web-next build",
+    "build:angular": "bun --filter @booking-scheduler/web-angular build",
+    "typecheck": "bun --filter @booking-scheduler/api typecheck && bun --filter @booking-scheduler/web-next typecheck",
     "db:migrate": "bun --filter @booking-scheduler/api migration:run",
     "db:migrate:revert": "bun --filter @booking-scheduler/api migration:revert",
     "verify:phase5": "node scripts/verify-phase5.mjs",
     "verify:phase6": "node scripts/verify-phase6.mjs",
     "test:api": "bun --filter @booking-scheduler/api test",
-    "test:web": "bun --filter @booking-scheduler/web test",
+    "test:next": "bun --filter @booking-scheduler/web-next test",
+    "test:angular": "bun --filter @booking-scheduler/web-angular test",
     "test:e2e:install": "PLAYWRIGHT_BROWSERS_PATH=\"$HOME/Library/Caches/ms-playwright\" playwright install chromium",
     "test:e2e": "PLAYWRIGHT_BROWSERS_PATH=\"$HOME/Library/Caches/ms-playwright\" playwright test",
     "test:e2e:ui": "PLAYWRIGHT_BROWSERS_PATH=\"$HOME/Library/Caches/ms-playwright\" playwright test --ui",
-    "test": "bun run test:api && bun run test:web"
+    "test": "bun run test:api && bun run test:next"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0"
