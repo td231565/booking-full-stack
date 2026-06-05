@@ -166,7 +166,7 @@ bun db:migrate
 bun db:migrate:revert
 ```
 
-> 請在專案根目錄執行上述指令。若需直接在後端目錄操作，可改執行 `bun --cwd apps/api migration:run`。
+> 請在專案根目錄執行上述指令。若需指定後端工作區操作，可改執行 `bun --filter @booking-scheduler/api migration:run`。
 
 ### 5. 啟動開發伺服器
 
