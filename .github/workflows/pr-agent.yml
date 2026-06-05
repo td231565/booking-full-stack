@@ -1,0 +1,49 @@
+name: PR Agent (Gemini Code Review)
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize, labeled]
+  issue_comment:
+    types: [created]
+
+jobs:
+  pr_agent_job:
+    # 只有當 PR 標籤中包含 'ai-review' 時才執行工作流程（相容 PR 事件與留言事件）
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'ai-review') ||
+      contains(github.event.issue.labels.*.name, 'ai-review')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: PR Agent Action
+        id: pragent
+        uses: qodo-ai/pr-agent@main
+        env:
+          # GitHub 自動提供的權限 Token，用於在 PR 中留下評論與審查
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+          # 對接 Google AI Studio API 的密鑰
+          GOOGLE_AI_STUDIO.GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          
+          # 模型配置：推薦使用為 AI 代理人優化的 gemini-3.1-pro
+          # 若想更換模型，可切換為以下任一版本：
+          # - gemini/gemini-3.1-pro  (推薦：最強推理能力與 Coding 優化，適合複雜審查)
+          # - gemini/gemini-2.5-pro  (次之：GA 穩定版本，價格稍低於 3.1 Pro)
+          # - gemini/gemini-3.5-flash (最快：極速且最便宜，適用於例行性審查)
+          config.model: "gemini/gemini-3.1-pro"
+          config.fallback_models: '["gemini/gemini-2.5-pro", "gemini/gemini-3.5-flash"]'
+
+          # 自動工具配置
+          github_action_config.auto_review: "true"   # 開啟自動審查並回覆 PR
+          github_action_config.auto_describe: "true" # 自動為 PR 產生標題與修改描述
+          github_action_config.auto_improve: "true"  # 提供具體的程式碼改進建議
+          
+          # 回覆語言配置：設定為台灣正體中文 (zh-TW)
+          config.response_language: "zh-TW"
+          
+          # 降低 Temperature 以讓 code review 的回覆更嚴謹與 deterministic
+          config.temperature: "0.2"
