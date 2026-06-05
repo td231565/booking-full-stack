@@ -51,7 +51,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
 // 顯示單張公開服務卡片，inactive 服務會清楚標示不可預約。
 function ServiceCard({ service }: { service: PublicService }) {
   return (
-    <Panel className="flex flex-col gap-4">
+    <Panel className="service-card flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 className="text-xl font-semibold text-ink">{service.name}</h2>
         <ServiceStatusBadge status={service.status} />

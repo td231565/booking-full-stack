@@ -82,10 +82,11 @@ function AvailabilityList({ service, slots }: { service: PublicService; slots: P
   return (
     <Panel>
       <h2 className="text-lg font-semibold text-ink">可預約時段</h2>
-      <ListStack>
+      <ListStack className="slot-list">
         {slots.map((slot) => (
           <ListRow
             actions={<BookingActions serviceId={service.id} slot={slot} />}
+            className="slot"
             key={slot.id}
           >
             <p className="font-semibold text-ink">{formatDateTime(slot.startAt)}</p>

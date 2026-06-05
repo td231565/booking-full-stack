@@ -1,4 +1,5 @@
 import { buildBookingIcs, type BookingIcsInput } from './build-booking-ics';
+export { type BookingIcsInput };
 
 // 將 .ics 內容建立 Blob 並觸發下載，並確保 revoke object URL。
 export function downloadBookingIcs(booking: BookingIcsInput) {

@@ -39,12 +39,12 @@ test.describe('會員預約 golden path', () => {
     await expect(page).toHaveURL(/\/my\/bookings$/);
     await expect(page.getByRole('heading', { name: '我的預約' })).toBeVisible();
 
-    const serviceId = await findPublicServiceIdByName(request, SEED_SERVICE_NAMES.active);
-    expect(serviceId).toBeTruthy();
-
     const adminEmail = `e2e-golden-admin-${runId}@example.com`;
     const adminSession = await registerAndLoginAdmin(request, adminEmail, 'Golden Admin');
-    await createAdminAvailabilitySlot(request, adminSession.token, serviceId!, 72 + (runId % 500), 60);
+
+    const serviceName = `E2E Golden 服務 ${runId}`;
+    const serviceId = await createAdminService(request, adminSession.token, serviceName);
+    await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 5, 60);
 
     await page.goto(`/services/${serviceId}`);
     await expect(page.getByRole('button', { name: '預約' }).first()).toBeVisible();

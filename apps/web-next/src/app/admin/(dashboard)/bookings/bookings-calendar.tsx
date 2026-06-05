@@ -33,8 +33,12 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
   const [filterStatus, setFilterStatus] = React.useState<'general' | 'cancelled'>('general');
 
   React.useEffect(() => {
-    setSelectedDate(new Date());
-  }, []);
+    if (initialBookings.length > 0) {
+      setSelectedDate(parseISO(initialBookings[0].slot.startAt));
+    } else {
+      setSelectedDate(new Date());
+    }
+  }, [initialBookings]);
 
   // Dialog 狀態
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
@@ -130,14 +134,14 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
           </div>
 
           {filteredBookings.length > 0 ? (
-            <ul className="space-y-4">
+            <div className="space-y-4">
               {filteredBookings.map((booking) => (
-                <li key={booking.id} className="rounded-md border border-border p-3">
+                <section key={booking.id} className="rounded-md border border-border p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-medium text-ink">{booking.service.name}</p>
                       <p className="text-sm text-ink-muted">
-                        {booking.user.displayName} ({format(parseISO(booking.slot.startAt), 'HH:mm')})
+                        {booking.user.displayName} ({booking.user.email}) ({format(parseISO(booking.slot.startAt), 'HH:mm')})
                       </p>
                     </div>
                     <BookingStatusBadge status={booking.status} />
@@ -177,9 +181,9 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
                       取消
                     </Button>
                   </div>
-                </li>
+                </section>
               ))}
-            </ul>
+            </div>
           ) : (
             <p className="py-8 text-center text-sm text-ink-muted">此日期無預約</p>
           )}
