@@ -4,6 +4,7 @@ const apiBaseUrl = process.env.API_BASE_URL ?? 'http://127.0.0.1:3001';
 const webBaseUrl = process.env.WEB_BASE_URL ?? 'http://127.0.0.1:3000';
 
 // Playwright E2E 設定：同時啟動 API 與 Web，覆蓋公開瀏覽與會員預約流程。
+// 測試 PR-Agent 翻譯繁體中文
 export default defineConfig({
   testDir: './e2e/tests',
   fullyParallel: true,
