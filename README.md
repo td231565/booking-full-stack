@@ -114,8 +114,7 @@
 
 ## 環境需求
 
-- **Node.js** 20+（建議 LTS）
-- **npm** 10+（使用 workspaces）
+- **Bun** 1.0+（建議，本專案已全面改用 Bun 管理）
 - **Docker**（僅用於啟動 PostgreSQL，亦可改用本機已安裝的 Postgres）
 
 ## 如何啟用
@@ -125,7 +124,7 @@
 在專案根目錄執行：
 
 ```bash
-npm install
+bun install
 ```
 
 ### 2. 啟動資料庫
@@ -158,16 +157,16 @@ WEB_ORIGIN=http://127.0.0.1:3000
 ### 4. 執行資料庫 migration
 
 ```bash
-npm run db:migrate
+bun db:migrate
 ```
 
 若要還原最後一版 migration：
 
 ```bash
-npm run db:migrate:revert
+bun db:migrate:revert
 ```
 
-> 請在專案根目錄執行上述指令。根目錄勿使用與 `apps/api` 同名的 `migration:run`，否則 npm 會無限遞迴；若需直接操作，可改在 `apps/api` 執行 `npm run migration:run`。
+> 請在專案根目錄執行上述指令。若需指定後端工作區操作，可改執行 `bun --filter @booking-scheduler/api migration:run`。
 
 ### 5. 啟動開發伺服器
 
@@ -175,10 +174,10 @@ npm run db:migrate:revert
 
 ```bash
 # 終端機 A：後端 API（預設 http://127.0.0.1:3001）
-npm run dev:api
+bun dev:api
 
 # 終端機 B：前端（預設 http://127.0.0.1:3000）
-npm run dev:web
+bun dev:web
 ```
 
 前端預設會呼叫 `http://127.0.0.1:3001` 的 API。若要自訂，可在 `apps/web` 建立 `.env.local`：
@@ -201,7 +200,7 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:3001
 
 #### 1. 停止開發伺服器
 
-在執行 `npm run dev:api`、`npm run dev:web` 的終端機各按 **`Ctrl + C`**，直到程序結束並回到 shell 提示符。
+在執行 `bun dev:api`、`bun dev:web` 的終端機各按 **`Ctrl + C`**，直到程序結束並回到 shell 提示符。
 
 若終端機已關閉但 port 仍被佔用，可在專案根目錄查詢並結束（擇一使用）：
 
@@ -240,8 +239,8 @@ lsof -i :5432              # 若只用本專案 Docker Postgres，應無 LISTEN
 ### 其他常用指令
 
 ```bash
-npm run build          # 建置 api + web
-npm run typecheck      # TypeScript 檢查
+bun run build          # 建置 api + web
+bun run typecheck      # TypeScript 檢查
 ```
 
 ## 開發規範
@@ -350,7 +349,7 @@ npm run typecheck      # TypeScript 檢查
 - **後台版面**：`/admin/*` 與公開站分離，不使用公開站 header，以 sidebar + status bar 呈現
 - **Session**：兩顆 Cookie（`booking_member_session` / `booking_admin_session`），皆設定 `HttpOnly`、`Secure`、`SameSite=Lax`；DB 僅存 token hash；登出僅撤銷對應 audience 的 session
 - **快取**：會員頁與後台頁使用 `dynamic = 'force-dynamic'`，避免 SSR 共享私人資料
-- **Rate limit**：依 `api_contract.md` §2.8 分路由限流（`npm run verify:phase6` 可驗證）
+- **Rate limit**：依 `api_contract.md` §2.8 分路由限流（`bun verify:phase6` 可驗證）
 
 ## 疑難排解
 
