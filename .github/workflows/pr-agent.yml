@@ -47,3 +47,6 @@ jobs:
           
           # 降低 Temperature 以讓 code review 的回覆更嚴謹與 deterministic
           CONFIG__TEMPERATURE: "0.2"
+          
+          # 設定自訂模型的最大 Token 數，避免未預先註冊的 Gemini 模型出現 MAX_TOKENS 錯誤
+          CONFIG__CUSTOM_MODEL_MAX_TOKENS: "32000"
