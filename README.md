@@ -77,21 +77,24 @@
 │   │   │       ├── availability/     # 時段模組
 │   │   │       └── audit-log/        # 稽核模組
 │   │   └── .env.example
-│   └── web/                          # Next.js 前端
+│   └── web-next/                     # Next.js 前端
 │       └── src/
 │           ├── app/                  # App Router 頁面
-│           │   ├── page.tsx          # 首頁
-│           │   ├── services/         # 公開服務列表、詳情
-│           │   ├── login/            # 登入
-│           │   ├── register/         # 註冊
-│           │   ├── my/bookings/      # 我的預約
-│           │   └── admin/            # 後台（獨立路由）
-│           │       ├── (auth)/login/ # 後台登入頁
-│           │       └── (dashboard)/  # sidebar + status bar + 管理頁
-│           │           ├── bookings/   # 預約管理（預設首頁）
-│           │           ├── services/
-│           │           ├── availability/
-│           │           └── audit-logs/
+│           │   ├── (site)/           # 前台路由群組
+│           │   │   ├── layout.tsx    # 前台共用 Layout（含 SiteHeader）
+│           │   │   ├── page.tsx      # 首頁
+│           │   │   ├── services/     # 公開服務列表、詳情
+│           │   │   ├── login/        # 登入
+│           │   │   ├── register/     # 註冊
+│           │   │   └── my/bookings/  # 我的預約
+│           │   └── (manage)/         # 後台路由群組
+│           │       └── admin/        # 後台（獨立路由）
+│           │           ├── (auth)/login/ # 後台登入頁
+│           │           └── (dashboard)/  # sidebar + status bar + 管理頁
+│           │               ├── bookings/   # 預約管理（預設首頁）
+│           │               ├── services/
+│           │               ├── availability/
+│           │               └── audit-logs/
 │           ├── components/
 │           │   ├── ui/               # loading / empty / error 狀態
 │           │   ├── admin/            # 後台 sidebar、status bar、登出
@@ -180,7 +183,7 @@ bun dev:api
 bun dev:web
 ```
 
-前端預設會呼叫 `http://127.0.0.1:3001` 的 API。若要自訂，可在 `apps/web` 建立 `.env.local`：
+前端預設會呼叫 `http://127.0.0.1:3001` 的 API。若要自訂，可在 `apps/web-next` 建立 `.env.local`：
 
 ```env
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:3001

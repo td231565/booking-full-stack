@@ -6,4 +6,4 @@ cd "$(dirname "$0")/.."
 
 export NEXT_PUBLIC_API_BASE_URL="${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:3001}"
 
-exec npm run dev -w apps/web
+exec npm run dev -w apps/web-next

@@ -15,6 +15,8 @@ async function bootstrap(): Promise<void> {
     new Set([
       'http://localhost:3000',
       'http://127.0.0.1:3000',
+      'http://localhost:4200',
+      'http://127.0.0.1:4200',
       ...(process.env.WEB_ORIGIN ? [process.env.WEB_ORIGIN] : []),
     ]),
   );

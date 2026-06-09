@@ -82,7 +82,7 @@ adminTest.describe('後台管理 golden path', () => {
 
     const serviceName = `E2E Admin 預約服務 ${runId}`;
     const serviceId = await createAdminService(request, adminSession.token, serviceName);
-    const slotId = await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 50, 60);
+    const slotId = await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 2, 60);
 
     await createAdminBooking(request, adminSession.token, member.userId, slotId, 'admin e2e booking');
 
@@ -101,13 +101,16 @@ adminTest.describe('後台管理 golden path', () => {
 
     const serviceName = `E2E Admin 取消服務 ${runId}`;
     const serviceId = await createAdminService(request, adminSession.token, serviceName);
-    const slotId = await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 52, 60);
+    const slotId = await createAdminAvailabilitySlot(request, adminSession.token, serviceId, 2, 60);
     const bookingId = await createAdminBooking(request, adminSession.token, member.userId, slotId);
 
     const cancelled = await cancelAdminBooking(request, adminSession.token, bookingId, 'admin e2e cancel');
     expect(cancelled.ok()).toBeTruthy();
 
     await adminPage.goto('/admin/bookings');
+
+    // 點擊「已取消」分頁，以顯示已被取消的預約
+    await adminPage.getByRole('button', { name: '已取消' }).click();
 
     const card = adminPage.locator('section').filter({ hasText: serviceName });
     await expect(card.getByText('已取消')).toBeVisible();
