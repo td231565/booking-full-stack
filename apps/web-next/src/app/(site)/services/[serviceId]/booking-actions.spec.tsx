@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { delay, http, HttpResponse } from 'msw';
-import { server } from '../../../../test/msw/server';
+import { server } from '@test/msw/server';
 import { BookingActions } from './booking-actions';
 
 const push = vi.fn();

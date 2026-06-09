@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { server } from '../../../../test/msw/server';
+import { server } from '@test/msw/server';
 import { BookingsList } from './bookings-list';
 
 const push = vi.fn();

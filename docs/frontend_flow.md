@@ -26,7 +26,7 @@
 - 會員頁與後台頁不可使用共享快取
 - 會員與後台資料需依 session 判斷，建議使用 `cache: 'no-store'`
 - 互動表單、登入、預約、取消預約使用 Client Component
-- 後台與公開站版面分離：`/admin/*` 不顯示公開站 header，使用獨立 sidebar + status bar
+- 後台與公開站版面分離：透過 `(site)` 與 `(manage)` 路由群組區隔 Layout，後台不加載前台的 `SiteHeader`，使用獨立 sidebar + status bar
 
 資料安全原則：
 
@@ -38,48 +38,52 @@
 
 ## 3. 建議路由結構
 
-### 3.1 公開站與會員頁
+### 3.1 公開站與會員頁 (site)
 
 ```text
 app/
-  layout.tsx              # 根 layout（含 SiteHeader，/admin 不顯示）
-  page.tsx
-  services/
+  layout.tsx              # 根 layout（僅骨架與字型，供所有路由共享）
+  (site)/
+    layout.tsx            # 前台 layout（含 SiteHeader）
     page.tsx
-    [serviceId]/
-      page.tsx
-  login/
-    page.tsx
-  register/
-    page.tsx
-  my/
-    bookings/
-      page.tsx
-      [bookingId]/
-        page.tsx
-```
-
-### 3.2 後台（獨立路由，無公開站 header）
-
-後台使用 Route Group 分離登入頁與 dashboard，URL 不含 group 名稱：
-
-```text
-app/admin/
-  (auth)/
-    login/
-      page.tsx              # /admin/login
-      admin-login-form.tsx  # Client Component
-  (dashboard)/
-    layout.tsx              # sidebar + status bar + auth guard
-    page.tsx                # /admin → redirect /admin/bookings
-    bookings/
-      page.tsx              # /admin/bookings（預設首頁）
     services/
       page.tsx
-    availability/
+      [serviceId]/
+        page.tsx
+    login/
       page.tsx
-    audit-logs/
+    register/
       page.tsx
+    my/
+      bookings/
+        page.tsx
+        [bookingId]/
+          page.tsx
+```
+
+### 3.2 後台 (manage)
+
+後台完整移入 `(manage)` 路由群組下，依然保持 `/admin` 存取：
+
+```text
+app/
+  (manage)/
+    admin/
+      (auth)/
+        login/
+          page.tsx              # /admin/login
+          admin-login-form.tsx  # Client Component
+      (dashboard)/
+        layout.tsx              # sidebar + status bar + auth guard
+        page.tsx                # /admin → redirect /admin/bookings
+        bookings/
+          page.tsx              # /admin/bookings（預設首頁）
+        services/
+          page.tsx
+        availability/
+          page.tsx
+        audit-logs/
+          page.tsx
 ```
 
 後台入口：**無公開站導覽連結**，須直接前往 `/admin/login`。
@@ -89,13 +93,15 @@ app/admin/
 ```text
 src/
   app/
-    admin/
-      (auth)/login/
-      (dashboard)/
+    (site)/
+    (manage)/
+      admin/
+        (auth)/login/
+        (dashboard)/
   components/
     ui/
     admin/                  # sidebar、status bar、logout、nav 設定
-    site-header.tsx         # 公開站 header（pathname 以 /admin 開頭時不渲染）
+    site-header.tsx         # 公開站 header（僅在 (site) layout 中加載）
   lib/
     api/
     auth/                   # getCurrentMemberUser、getCurrentAdminUser、getCurrentUserFromCookieHeader
@@ -372,7 +378,7 @@ POST /api/me/bookings/:bookingId/cancel
 
 **版面**
 
-- 公開站 `SiteHeader` 在 `pathname.startsWith('/admin')` 時不渲染
+- 透過 `(site)` 與 `(manage)` 路由群組 Layout 設計，公開站 `SiteHeader` 僅在 `(site)` 內加載，後台 `(manage)` 路由不會載入此 Header
 - `(dashboard)/layout.tsx` 提供全螢幕後台 shell：
   - 左側 sidebar（240px）：系統名稱、路由選單、登出
   - 頂部 status bar：目前頁面標題、登入人員 `displayName` 與角色標籤

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { delay, http, HttpResponse } from 'msw';
-import { server } from '../../../test/msw/server';
+import { server } from '@test/msw/server';
 import { RegisterForm } from './register-form';
 
 const push = vi.fn();

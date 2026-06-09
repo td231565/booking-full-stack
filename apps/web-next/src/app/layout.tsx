@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Sans, Noto_Sans_TC, Geist } from 'next/font/google';
-import { SiteHeader } from '@/components/site-header';
 import { HydrationWrapper } from '@/components/hydration-wrapper';
 import './globals.css';
 import { cn } from "@/lib/utils";
@@ -24,7 +23,7 @@ export const metadata: Metadata = {
   description: '預約排程系統 MVP',
 };
 
-// 建立全站基本版面與主要導覽，讓公開頁、會員頁與後台頁共用一致入口。
+// 建立全站最外層骨架與字型，供所有路由群組共用。
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -34,10 +33,7 @@ export default function RootLayout({
     <html lang="zh-Hant-TW">
       <body className={cn("min-h-screen font-sans", ibmPlexSans.variable, notoSansTC.variable, geist.variable)}>
         <HydrationWrapper>
-          <div className="flex min-h-screen flex-col">
-            <SiteHeader />
-            <div className="flex-1">{children}</div>
-          </div>
+          {children}
         </HydrationWrapper>
       </body>
     </html>
