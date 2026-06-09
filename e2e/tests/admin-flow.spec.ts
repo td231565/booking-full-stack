@@ -88,7 +88,7 @@ adminTest.describe('後台管理 golden path', () => {
 
     await adminPage.goto('/admin/bookings');
 
-    const card = adminPage.locator('section').filter({ hasText: serviceName });
+    const card = adminPage.locator('section section').filter({ hasText: serviceName });
     await expect(card.getByText(memberEmail)).toBeVisible();
     await expect(card.getByText('已成立')).toBeVisible();
     await expect(card.getByText('備註：admin e2e booking')).toBeVisible();
@@ -112,7 +112,7 @@ adminTest.describe('後台管理 golden path', () => {
     // 點擊「已取消」分頁，以顯示已被取消的預約
     await adminPage.getByRole('button', { name: '已取消' }).click();
 
-    const card = adminPage.locator('section').filter({ hasText: serviceName });
+    const card = adminPage.locator('section section').filter({ hasText: serviceName });
     await expect(card.getByText('已取消')).toBeVisible();
   });
 

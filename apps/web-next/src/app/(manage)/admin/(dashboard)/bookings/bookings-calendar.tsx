@@ -33,12 +33,8 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
   const [filterStatus, setFilterStatus] = React.useState<'general' | 'cancelled'>('general');
 
   React.useEffect(() => {
-    if (initialBookings.length > 0) {
-      setSelectedDate(parseISO(initialBookings[0].slot.startAt));
-    } else {
-      setSelectedDate(new Date());
-    }
-  }, [initialBookings]);
+    setSelectedDate(new Date());
+  }, []);
 
   // Dialog 狀態
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
@@ -146,6 +142,9 @@ export function BookingsCalendar({ initialBookings, month }: BookingsCalendarPro
                     </div>
                     <BookingStatusBadge status={booking.status} />
                   </div>
+                  {booking.note && (
+                    <p className="mt-2 text-sm text-ink-muted">備註：{booking.note}</p>
+                  )}
                   <div className="mt-3 flex gap-2">
                     <Button
                       variant="secondary"
